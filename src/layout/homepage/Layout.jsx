@@ -5,21 +5,21 @@ import { Outlet } from 'react-router-dom';
 // project import
 // import GuestGuard from 'utils/route-guard/GuestGuard';
 
-// const Header = lazy(() => import('./header/Header'));
-// const Footer = lazy(() => import('./Footer'));
+const Header = lazy(() => import('./Header'));
+const Footer = lazy(() => import('./Footer'));
 
 // ==============================|| LAYOUT - DASHBOARD ||============================== //
 
 const Layout = () => {
 
     return (
-            // <GuestGuard>
-                // <Header />
+        <>
+                <Header />
                 <div className='outlet-container'>
                     <Outlet />
                 </div>
-                // <Footer />
-            // </GuestGuard>
+                <Footer />
+        </>
     );
 };
 

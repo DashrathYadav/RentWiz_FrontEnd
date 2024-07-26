@@ -7,7 +7,8 @@ const LoginTesting = () => {
             sx={{
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: 'center',
-                backgroundSize: 'cover'
+                backgroundSize: 'cover',
+                padding:10
             }}
         >
             <Box
@@ -19,7 +20,7 @@ const LoginTesting = () => {
                     height: '100%'
                 }}
             >
-               <Typography>Hiii</Typography>
+               <Typography>Creating Header and Footer</Typography>
             </Box>
         </Grid>
     );
