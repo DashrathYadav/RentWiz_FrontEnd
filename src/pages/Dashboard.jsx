@@ -1,0 +1,280 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
+  Chip,
+  Button
+} from '@mui/material';
+import {
+  Home,
+  People,
+  AttachMoney,
+  Room,
+  Visibility,
+  Edit,
+  Add
+} from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { 
+  propertyAPI, 
+  tenantAPI, 
+  rentAPI, 
+  roomAPI 
+} from '../services/api';
+
+const Dashboard = () => {
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    totalProperties: 0,
+    totalTenants: 0,
+    totalRooms: 0,
+    monthlyRevenue: 0
+  });
+  const [recentRents, setRecentRents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all data in parallel
+      const [properties, tenants, rooms, rents] = await Promise.all([
+        propertyAPI.getAll(),
+        tenantAPI.getAll(),
+        roomAPI.getAll(),
+        rentAPI.getAll()
+      ]);
+
+      // Check if the response has data property or if the data is directly in response.data.data
+      const propertiesData = properties.data?.data || properties.data || [];
+      const tenantsData = tenants.data?.data || tenants.data || [];
+      const roomsData = rooms.data?.data || rooms.data || [];
+      const rentsData = rents.data?.data || rents.data || [];
+
+      // Calculate stats
+      setStats({
+        totalProperties: Array.isArray(propertiesData) ? propertiesData.length : 0,
+        totalTenants: Array.isArray(tenantsData) ? tenantsData.length : 0,
+        totalRooms: Array.isArray(roomsData) ? roomsData.length : 0,
+        monthlyRevenue: Array.isArray(rentsData) ? rentsData.reduce((total, rent) => total + (rent.amount || 0), 0) : 0
+      });
+
+      // Set recent rents (last 5)
+      setRecentRents(Array.isArray(rentsData) ? rentsData.slice(0, 5) : []);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const StatCard = ({ title, value, icon, color = '#000' }) => (
+    <Card sx={{ height: '100%', backgroundColor: '#fff', border: '1px solid #e0e0e0' }}>
+      <CardContent>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box>
+            <Typography variant="h6" color="textSecondary" gutterBottom>
+              {title}
+            </Typography>
+            <Typography variant="h4" component="div" color={color} fontWeight="bold">
+              {value}
+            </Typography>
+          </Box>
+          <Box sx={{ color: color }}>
+            {icon}
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
+  const QuickAction = ({ title, description, onClick, icon }) => (
+    <Card sx={{ cursor: 'pointer', '&:hover': { backgroundColor: '#f5f5f5' } }} onClick={onClick}>
+      <CardContent>
+        <Box display="flex" alignItems="center" mb={1}>
+          {icon}
+          <Typography variant="h6" ml={1}>
+            {title}
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="textSecondary">
+          {description}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Typography>Loading dashboard...</Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box p={3}>
+      <Typography variant="h4" gutterBottom color="#000" fontWeight="bold">
+        Dashboard
+      </Typography>
+      
+      {/* Stats Cards */}
+      <Grid container spacing={3} mb={4}>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Total Properties"
+            value={stats.totalProperties}
+            icon={<Home sx={{ fontSize: 40 }} />}
+            color="#000"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Total Tenants"
+            value={stats.totalTenants}
+            icon={<People sx={{ fontSize: 40 }} />}
+            color="#000"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Total Rooms"
+            value={stats.totalRooms}
+            icon={<Room sx={{ fontSize: 40 }} />}
+            color="#000"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Monthly Revenue"
+            value={`$${stats.monthlyRevenue.toLocaleString()}`}
+            icon={<AttachMoney sx={{ fontSize: 40 }} />}
+            color="#000"
+          />
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={3}>
+        {/* Quick Actions */}
+        <Grid item xs={12} md={6}>
+          <Typography variant="h6" gutterBottom color="#000" fontWeight="bold">
+            Quick Actions
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <QuickAction
+                title="Add Property"
+                description="Create a new property listing"
+                onClick={() => navigate('/properties/create')}
+                icon={<Add />}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <QuickAction
+                title="Add Tenant"
+                description="Register a new tenant"
+                onClick={() => navigate('/tenants/create')}
+                icon={<People />}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <QuickAction
+                title="Add Room"
+                description="Create a new room"
+                onClick={() => navigate('/rooms/create')}
+                icon={<Room />}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <QuickAction
+                title="Record Rent"
+                description="Record rent payment"
+                onClick={() => navigate('/rents/create')}
+                icon={<AttachMoney />}
+              />
+            </Grid>
+          </Grid>
+        </Grid>
+
+        {/* Recent Rents */}
+        <Grid item xs={12} md={6}>
+          <Typography variant="h6" gutterBottom color="#000" fontWeight="bold">
+            Recent Rent Payments
+          </Typography>
+          <TableContainer component={Paper} sx={{ border: '1px solid #e0e0e0' }}>
+            <Table>
+              <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                <TableRow>
+                  <TableCell>Tenant</TableCell>
+                  <TableCell>Amount</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {recentRents.length > 0 ? (
+                  recentRents.map((rent) => (
+                    <TableRow key={rent.id}>
+                      <TableCell>{rent.tenantName || 'N/A'}</TableCell>
+                      <TableCell>${rent.amount}</TableCell>
+                      <TableCell>
+                        {new Date(rent.paymentDate).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={rent.isPaid ? 'Paid' : 'Pending'}
+                          color={rent.isPaid ? 'success' : 'warning'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => navigate(`/rents/${rent.id}`)}
+                        >
+                          <Visibility />
+                        </IconButton>
+                        <IconButton 
+                          size="small"
+                          onClick={() => navigate(`/rents/${rent.id}/edit`)}
+                        >
+                          <Edit />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow key="no-data">
+                    <TableCell colSpan={5} align="center">
+                      <Typography color="textSecondary">
+                        No recent rent payments found
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
+
+export default Dashboard;

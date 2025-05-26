@@ -9,7 +9,6 @@ import authReducer from '../contexts/auth-reducer/auth';
 // project import
 import Loader from '../components/Loader';
 import axios from '../utils/axios';
-import { decryptData } from '../utils/commonUtils';
 
 import { API_Route } from '../utils/apiRoute';
 
@@ -30,8 +29,13 @@ const verifyToken = (serviceToken) => {
     if (!serviceToken) {
         return false;
     }
-    const decoded = jwtDecode(decryptData(serviceToken));
-    return decoded.exp > Date.now() / 1000;
+    try {
+        const decoded = jwtDecode(serviceToken);
+        return decoded.exp > Date.now() / 1000;
+    } catch (error) {
+        console.error('Token verification error:', error);
+        return false;
+    }
 };
 
 const setSession = (token) => {
@@ -40,6 +44,7 @@ const setSession = (token) => {
         axios.defaults.headers.common.Authorization = `Bearer ${token}`;
     } else {
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
         localStorage.removeItem('loginType');
         delete axios.defaults.headers.common.Authorization;
     }
@@ -58,37 +63,31 @@ export const JWTProvider = ({ children }) => {
     }, []);
     const getUserProfileVerify = async () => {
         try {
-
             const token = window.localStorage.getItem('token');
-            const loginType = window.localStorage.getItem('loginType') || '';
             if (token && verifyToken(token)) {
                 setSession(token);
-                let response;
-                if (loginType == 'GB') {
-                    response = await axios.post(API_Route.getProfile_GB, { token: token });
-                } else {
-                    response = await axios.post(API_Route.getProfile, { token: token });
-                }
-                if (response?.data.statusCode === StatusCode.success) {
-                    const user = response?.data?.data;
-                    dispatch({
-                        type: LOGIN,
-                        payload: {
-                            isLoggedIn: true,
-                            user
-                        }
-                    });
-                    // openSnackbar({ open: true, message: "Login successful.", variant: 'alert', alert: { color: 'success' } });
-                    return;
-                }
-                else {
-                    // openSnackbar({ open: true, message: response.message || "Something went wrong while verifying user profile.", variant: 'alert', alert: { color: 'error' } });
-                    setSession(null);
-                    dispatch({
-                        type: LOGOUT
-                    });
-                    return;
-                }
+                // For now, we'll create a basic user object from the token
+                // In a real scenario, you'd call an API to get the user profile
+                const decoded = jwtDecode(token);
+                const user = {
+                    id: decoded.userId || decoded.sub || decoded.nameid,
+                    email: decoded.email,
+                    name: decoded.name || decoded.unique_name,
+                    role: decoded.role,
+                    roleId: decoded.roleId
+                };
+                
+                // Store user in localStorage for API calls
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                dispatch({
+                    type: LOGIN,
+                    payload: {
+                        isLoggedIn: true,
+                        user
+                    }
+                });
+                return;
             } else {
                 setSession(null);
                 dispatch({
@@ -97,6 +96,7 @@ export const JWTProvider = ({ children }) => {
                 return;
             }
         } catch (err) {
+            console.error('Token verification error:', err);
             setSession(null);
             dispatch({
                 type: LOGOUT
@@ -105,6 +105,34 @@ export const JWTProvider = ({ children }) => {
         }
     }
 
+
+    // Login function
+    const login = async (loginId, password) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(API_Route.login, { loginId, password });
+            
+            if (response?.data?.status === true && response?.data?.responseCode === 200) {
+                const { token } = response.data.data;
+                setSession(token);
+                await getUserProfileVerify();
+                return { success: true };
+            } else {
+                return { 
+                    success: false, 
+                    message: response?.data?.message || "Login failed" 
+                };
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            return { 
+                success: false, 
+                message: error?.response?.data?.message || "Login failed" 
+            };
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // User Registration 
     const useGetVerifyConsumerRegistrationUsingOtp = async (userId, email, mobileNumber, otp) => {
@@ -141,7 +169,7 @@ export const JWTProvider = ({ children }) => {
     }
 
     return (
-        <JWTContext.Provider value={{ ...state, getUserProfileVerify, useGetVerifyConsumerRegistrationUsingOtp, logout }}>
+        <JWTContext.Provider value={{ ...state, login, getUserProfileVerify, useGetVerifyConsumerRegistrationUsingOtp, logout }}>
             {children}
         </JWTContext.Provider>
     );

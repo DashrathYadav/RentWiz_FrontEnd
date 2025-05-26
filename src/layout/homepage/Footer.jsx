@@ -49,37 +49,34 @@ const Footer = () => {
         <>
             <Grid container style={{ backgroundColor: "#1D1D1F" }}>
                 <Grid container display={'flex'}>
-                    <Grid xs={12} sm={4} sx={styles.footerContact} backgroundColor={"#313134"}>
+                    <Grid item xs={12} sm={4} sx={styles.footerContact} backgroundColor={"#313134"}>
                         <Grid sx={styles.footerContact}>
                             <img src="https://www.ant-pc.com/assets/2022-theme/images/qr-img.png"
                                 width={50}
                                 height={50}
-                                alt="logo"
-                                responsive lazy />
+                                alt="logo" />
                         </Grid>
                         <Grid sx={styles.footerContact} className="roboto-medium">
                             <span style={{ fontSize: '1rem' }}>Scan the QR code to<br /> get complete product<br /> list</span>
                         </Grid>
                     </Grid>
-                    <Grid xs={12} sm={4} sx={styles.footerContact} backgroundColor={"#1D1D1F"}>
+                    <Grid item xs={12} sm={4} sx={styles.footerContact} backgroundColor={"#1D1D1F"}>
                         <Grid sx={styles.footerContact}>
                             <img src="https://www.ant-pc.com/assets/2022-theme/images/phone-icon.png"
                                 width={50}
                                 height={50}
-                                alt="logo"
-                                responsive lazy />
+                                alt="logo" />
                         </Grid>
                         <Grid sx={styles.footerContact} className="roboto-medium">
                             <span style={{ fontSize: '1.4rem', fontWeight: '700' }}>Call us<br /> +91-9096418659</span>
                         </Grid>
                     </Grid>
-                    <Grid xs={12} sm={4} sx={styles.footerContact} backgroundColor={"#313134"}>
+                    <Grid item xs={12} sm={4} sx={styles.footerContact} backgroundColor={"#313134"}>
                         <Grid sx={styles.footerContact}>
                             <img src="https://www.ant-pc.com/assets/2022-theme/images/mail-icon.png"
                                 width={50}
                                 height={50}
-                                alt="logo"
-                                responsive lazy />
+                                alt="logo" />
                         </Grid>
                         <Grid sx={styles.footerContact} className="roboto-medium">
                             <span style={{ fontSize: '1.4rem', fontWeight: '700' }}>Mail us<br />rentMo@rentmo.in </span>
@@ -87,7 +84,7 @@ const Footer = () => {
                     </Grid>
                 </Grid>
                 <Grid container sx={styles.footerQuickLinks} backgroundColor={"#1D1D1F"}>
-                    <Grid xs={12} sm={3} style={{ padding: '20px' }}>
+                    <Grid item xs={12} sm={3} style={{ padding: '20px' }}>
                         <span style={{ fontWeight: '500' }}>Quick Links </span>
                         <Grid sx={styles.quickContent}>
                             <a href="#" style={{ textDecoration: "none", color: "white", display: 'flex' }}>
@@ -109,7 +106,7 @@ const Footer = () => {
                         </Grid>
                     </Grid>
 
-                    <Grid xs={12} sm={3} style={{ padding: '20px' }}>
+                    <Grid item xs={12} sm={3} style={{ padding: '20px' }}>
                         <span style={{ fontWeight: '500' }}>Info Links </span>
                         <Grid sx={styles.quickContent}>
                             <a href="#" style={{ textDecoration: "none", color: "white", display: 'flex' }}>
@@ -143,7 +140,7 @@ const Footer = () => {
                         </Grid>
                     </Grid>
 
-                    <Grid xs={12} sm={3} style={{ padding: '20px' }}>
+                    <Grid item xs={12} sm={3} style={{ padding: '20px' }}>
                         <span style={{ fontWeight: '500' }}>Help</span>
                         <Grid sx={styles.quickContent}>
                             <a href="#" style={{ textDecoration: "none", color: "white", display: 'flex' }}>
@@ -164,7 +161,7 @@ const Footer = () => {
                             </a>
                         </Grid>
                     </Grid>
-                    <Grid xs={12} sm={3} style={{ padding: '20px' }}>
+                    <Grid item xs={12} sm={3} style={{ padding: '20px' }}>
                         <Grid container display={'flex'}>
                             <span style={
                                 {

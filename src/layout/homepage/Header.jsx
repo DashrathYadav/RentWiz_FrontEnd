@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { AppBar, Toolbar, Typography, Grid, Button, IconButton, Drawer, List, ListItem, ListItemText } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Header = () => {
+    const navigate = useNavigate();
     const [drawerOpen, setDrawerOpen] = useState(false);
+
+    const handleLoginClick = () => {
+        navigate('/login');
+    };
 
     const toggleDrawer = (open) => (event) => {
         if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
@@ -53,6 +58,7 @@ const Header = () => {
                     <Grid item sx={{ display: { xs: 'none', md: 'flex' } }}>
                         <Button
                             variant="contained"
+                            onClick={handleLoginClick}
                             sx={{
                                 backgroundColor: '#002856',
                                 color: '#ffffff',
