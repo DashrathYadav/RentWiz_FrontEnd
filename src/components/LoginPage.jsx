@@ -2,7 +2,6 @@ import React, { useState, useContext } from "react";
 import { Container, TextField, Button, Typography, Box, Alert, CircularProgress } from "@mui/material";
 import { useNavigate } from 'react-router-dom';
 import JWTContext from '../contexts/JWTContext';
-import LoginTestComponent from './LoginTestComponent';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -46,16 +45,12 @@ const LoginPage = () => {
             sx={{
                 height: "100vh",
                 display: "flex",
-                flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: "#000000", // Pure black background
                 color: "#ffffff", // White text
             }}
         >
-            {/* Temporary test component */}
-            <LoginTestComponent />
-            
             <Container
                 maxWidth="xs"
                 sx={{

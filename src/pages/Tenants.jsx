@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -19,7 +19,14 @@ import {
   TextField,
   InputAdornment,
   Fab,
-  Avatar
+  Avatar,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Pagination,
+  Stack
 } from '@mui/material';
 import {
   Add,
@@ -30,36 +37,98 @@ import {
   People,
   Phone,
   Email,
-  Home
+  Home,
+  Clear,
+  FilterList
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { tenantAPI, roomAPI } from '../services/api';
+import { debounce } from 'lodash';
 
 const Tenants = () => {
   const navigate = useNavigate();
+  
+  // Main state
   const [tenants, setTenants] = useState([]);
-  const [filteredTenants, setFilteredTenants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Search and filters state
   const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState({
+    status: '',
+    roomAssigned: ''
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    pageNumber: 0,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 0
+  });
+  
+  // Dialog state
   const [deleteDialog, setDeleteDialog] = useState({ open: false, tenant: null });
 
+  // Debounced search function
+  const debouncedFetch = useCallback(
+    debounce((search, currentFilters, currentPagination) => {
+      fetchTenants(search, currentFilters, currentPagination);
+    }, 500),
+    []
+  );
+
   useEffect(() => {
-    fetchTenants();
     fetchRooms();
+    fetchTenants();
   }, []);
 
   useEffect(() => {
-    filterTenants();
-  }, [searchTerm, tenants]);
+    debouncedFetch(searchTerm, filters, { ...pagination, pageNumber: 0 });
+    setPagination(prev => ({ ...prev, pageNumber: 0 }));
+  }, [searchTerm, filters, debouncedFetch]);
 
-  const fetchTenants = async () => {
+  const fetchTenants = async (search = searchTerm, currentFilters = filters, currentPagination = pagination) => {
     try {
       setLoading(true);
-      const response = await tenantAPI.getAll();
-      setTenants(response.data || []);
+      setError(null);
+      
+      const searchParams = {
+        pageNumber: currentPagination.pageNumber,
+        pageSize: currentPagination.pageSize
+      };
+
+      if (search) {
+        searchParams.searchTerm = search;
+      }
+
+      if (currentFilters.status) {
+        searchParams.status = currentFilters.status;
+      }
+
+      if (currentFilters.roomAssigned === 'true') {
+        searchParams.hasRoom = true;
+      } else if (currentFilters.roomAssigned === 'false') {
+        searchParams.hasRoom = false;
+      }
+
+      const response = await tenantAPI.search(searchParams);
+      
+      if (response.data) {
+        setTenants(response.data.content || []);
+        setPagination(prev => ({
+          ...prev,
+          totalCount: response.data.totalElements || 0,
+          totalPages: response.data.totalPages || 0
+        }));
+      }
     } catch (error) {
       console.error('Error fetching tenants:', error);
+      setError('Failed to load tenants. Please try again.');
+      setTenants([]);
     } finally {
       setLoading(false);
     }
@@ -74,18 +143,26 @@ const Tenants = () => {
     }
   };
 
-  const filterTenants = () => {
-    if (!searchTerm) {
-      setFilteredTenants(tenants);
-    } else {
-      const filtered = tenants.filter(tenant =>
-        tenant.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tenant.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tenant.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tenant.phoneNumber?.includes(searchTerm)
-      );
-      setFilteredTenants(filtered);
-    }
+  const handlePageChange = (event, newPage) => {
+    const newPagination = {
+      ...pagination,
+      pageNumber: newPage - 1 // Material-UI uses 1-based indexing, API uses 0-based
+    };
+    setPagination(newPagination);
+    fetchTenants(searchTerm, filters, newPagination);
+  };
+
+  const handleFilterChange = (filterType, value) => {
+    const newFilters = { ...filters, [filterType]: value };
+    setFilters(newFilters);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      status: '',
+      roomAssigned: ''
+    });
+    setSearchTerm('');
   };
 
   const handleDelete = async () => {
@@ -131,6 +208,14 @@ const Tenants = () => {
     );
   }
 
+  if (error) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Typography color="error">{error}</Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box p={3}>
       {/* Header */}
@@ -152,22 +237,83 @@ const Tenants = () => {
         </Button>
       </Box>
 
-      {/* Search */}
+      {/* Search and Filter Controls */}
       <Box mb={3}>
-        <TextField
-          fullWidth
-          placeholder="Search tenants by name, email, or phone number..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ maxWidth: 500 }}
-        />
+        {/* Search Bar */}
+        <Box mb={2}>
+          <TextField
+            fullWidth
+            placeholder="Search tenants by name, email, or phone number..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ maxWidth: 500 }}
+          />
+        </Box>
+
+        {/* Filter Toggle Button */}
+        <Box display="flex" alignItems="center" gap={2} mb={showFilters ? 2 : 0}>
+          <Button
+            variant="outlined"
+            startIcon={<FilterList />}
+            onClick={() => setShowFilters(!showFilters)}
+            sx={{ borderColor: '#000', color: '#000' }}
+          >
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </Button>
+          
+          {(filters.status || filters.roomAssigned || searchTerm) && (
+            <Button
+              startIcon={<Clear />}
+              onClick={clearFilters}
+              sx={{ color: '#666' }}
+            >
+              Clear All
+            </Button>
+          )}
+        </Box>
+
+        {/* Advanced Filters */}
+        {showFilters && (
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={filters.status}
+                  label="Status"
+                  onChange={(e) => handleFilterChange('status', e.target.value)}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="Active">Active</MenuItem>
+                  <MenuItem value="Inactive">Inactive</MenuItem>
+                  <MenuItem value="Late Payment">Late Payment</MenuItem>
+                  <MenuItem value="Evicted">Evicted</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth>
+                <InputLabel>Room Assignment</InputLabel>
+                <Select
+                  value={filters.roomAssigned}
+                  label="Room Assignment"
+                  onChange={(e) => handleFilterChange('roomAssigned', e.target.value)}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="true">Has Room</MenuItem>
+                  <MenuItem value="false">No Room</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        )}
       </Box>
 
       {/* Tenants Table */}
@@ -184,8 +330,8 @@ const Tenants = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredTenants.length > 0 ? (
-              filteredTenants.map((tenant) => (
+            {tenants.length > 0 ? (
+              tenants.map((tenant) => (
                 <TableRow key={tenant.id} hover>
                   <TableCell>
                     <Box display="flex" alignItems="center">
@@ -311,6 +457,36 @@ const Tenants = () => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <Box display="flex" justifyContent="center" mt={3}>
+          <Stack spacing={2}>
+            <Pagination
+              count={pagination.totalPages}
+              page={pagination.pageNumber + 1} // Material-UI uses 1-based indexing
+              onChange={handlePageChange}
+              color="primary"
+              size="large"
+              sx={{
+                '& .MuiPaginationItem-root': {
+                  color: '#000',
+                  '&.Mui-selected': {
+                    backgroundColor: '#000',
+                    color: '#fff',
+                    '&:hover': {
+                      backgroundColor: '#333',
+                    },
+                  },
+                },
+              }}
+            />
+            <Typography variant="body2" color="text.secondary" textAlign="center">
+              Showing {tenants.length} of {pagination.totalCount} tenants
+            </Typography>
+          </Stack>
+        </Box>
+      )}
 
       {/* Floating Action Button */}
       <Fab

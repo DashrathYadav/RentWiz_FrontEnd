@@ -56,9 +56,38 @@ const RoomDetails = () => {
   const fetchRoomDetails = async () => {
     try {
       const response = await roomAPI.getById(id);
-      setRoom(response.data);
+      // Handle the Result<T> wrapper structure from backend
+      const backendRoom = response.data?.data || response.data;
+      
+      // With camelCase serialization enabled in backend, we expect camelCase field names
+      if (backendRoom) {
+        const processedRoom = {
+          ...backendRoom,
+          // Map specific fields that need different property names
+          id: backendRoom.roomId,
+          roomNumber: backendRoom.roomNo,
+          type: backendRoom.roomType,
+          rentAmount: backendRoom.roomRent,
+          size: backendRoom.roomSize,
+          description: backendRoom.roomDescription,
+          status: backendRoom.statusName || backendRoom.status || 'Available',
+          isOccupied: backendRoom.status === "Occupied" || backendRoom.status === 2,
+          facility: backendRoom.roomFacility,
+          pic: backendRoom.roomPic,
+          // Create property object from backend fields
+          property: {
+            id: backendRoom.propertyId,
+            name: backendRoom.propertyName
+          },
+          // Note: tenant data would need to come from a separate API call if needed
+          tenant: null, // This might need to be fetched separately
+          floor: backendRoom.floor // If this field exists
+        };
+        setRoom(processedRoom);
+      }
     } catch (error) {
       setError('Failed to load room details');
+      console.error('Error fetching room details:', error);
     } finally {
       setLoading(false);
     }
@@ -67,7 +96,20 @@ const RoomDetails = () => {
   const fetchRoomRents = async () => {
     try {
       const response = await rentAPI.getAll();
-      const roomRents = response.data.filter(rent => rent.roomId === parseInt(id));
+      // Handle the Result<T> wrapper structure from backend
+      const rentsData = response.data?.data || response.data || [];
+      
+      // Filter rents for this room and map fields if needed
+      const roomRents = Array.isArray(rentsData) ? rentsData
+        .filter(rent => rent.roomId === parseInt(id))
+        .map(rent => ({
+          ...rent,
+          // Map specific fields that need different property names
+          amount: rent.amount || rent.rentAmount,
+          rentDate: rent.rentDate || rent.date,
+          paymentStatus: rent.paymentStatus || rent.status
+        })) : [];
+      
       setRents(roomRents);
     } catch (error) {
       console.error('Failed to load room rents:', error);

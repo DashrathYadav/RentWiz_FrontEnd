@@ -54,7 +54,26 @@ const PropertyDetails = () => {
   const fetchPropertyDetails = async () => {
     try {
       const response = await propertyAPI.getById(id);
-      setProperty(response.data);
+      // Handle the Result<T> wrapper structure from backend
+      const backendProperty = response.data?.data || response.data;
+      
+      // With camelCase serialization enabled in backend, we expect camelCase field names
+      if (backendProperty) {
+        const processedProperty = {
+          ...backendProperty,
+          // Map specific fields that need different property names
+          id: backendProperty.propertyId,
+          name: backendProperty.propertyName,
+          type: backendProperty.propertyType,
+          description: backendProperty.propertyDescription,
+          value: backendProperty.propertyValue,
+          isActive: backendProperty.isActive !== undefined ? backendProperty.isActive : (backendProperty.status === 1),
+          facility: backendProperty.propertyFacility,
+          rent: backendProperty.propertyRent,
+          size: backendProperty.propertySize
+        };
+        setProperty(processedProperty);
+      }
     } catch (error) {
       console.error('Error fetching property details:', error);
     }
@@ -62,12 +81,14 @@ const PropertyDetails = () => {
 
   const fetchPropertyRooms = async () => {
     try {
-      // Get all rooms and filter by property ID
-      const response = await roomAPI.getAll();
-      const propertyRooms = response.data?.filter(room => room.propertyId === parseInt(id)) || [];
-      setRooms(propertyRooms);
+      // Use the dedicated endpoint to get rooms by property ID
+      const response = await roomAPI.getByProperty(id);
+      // Handle the Result<T> wrapper structure from backend
+      const roomsData = response.data?.data || response.data || [];
+      setRooms(Array.isArray(roomsData) ? roomsData : []);
     } catch (error) {
       console.error('Error fetching property rooms:', error);
+      setRooms([]);
     } finally {
       setLoading(false);
     }
@@ -264,35 +285,35 @@ const PropertyDetails = () => {
                     </TableHead>
                     <TableBody>
                       {rooms.map((room) => (
-                        <TableRow key={room.id}>
+                        <TableRow key={room.roomId || room.id}>
                           <TableCell>
                             <Box display="flex" alignItems="center">
                               <Room sx={{ mr: 1, color: '#666' }} />
-                              {room.roomNumber}
+                              {room.roomNo || room.roomNumber}
                             </Box>
                           </TableCell>
-                          <TableCell>{room.type || 'Standard'}</TableCell>
+                          <TableCell>{room.roomType || room.type || 'Standard'}</TableCell>
                           <TableCell>
-                            ${room.rentAmount?.toLocaleString() || '0'}
+                            ${(room.roomRent || room.rentAmount || 0).toLocaleString()}
                           </TableCell>
                           <TableCell>
                             <Chip
-                              label={room.isOccupied ? 'Occupied' : 'Available'}
-                              color={getRoomStatusColor(room.isOccupied)}
+                              label={room.status === 2 || room.isOccupied ? 'Occupied' : 'Available'}
+                              color={getRoomStatusColor(room.status === 2 || room.isOccupied)}
                               size="small"
                             />
                           </TableCell>
                           <TableCell>
                             <IconButton
                               size="small"
-                              onClick={() => navigate(`/rooms/${room.id}`)}
+                              onClick={() => navigate(`/rooms/${room.roomId || room.id}`)}
                               title="View Room"
                             >
                               <Visibility />
                             </IconButton>
                             <IconButton
                               size="small"
-                              onClick={() => navigate(`/rooms/${room.id}/edit`)}
+                              onClick={() => navigate(`/rooms/${room.roomId || room.id}/edit`)}
                               title="Edit Room"
                             >
                               <Edit />
@@ -353,7 +374,7 @@ const PropertyDetails = () => {
                 <People sx={{ mr: 2, color: '#666' }} />
                 <Box>
                   <Typography variant="h6">
-                    {rooms.filter(room => room.isOccupied).length}
+                    {rooms.filter(room => room.status === 2 || room.isOccupied).length}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
                     Occupied Rooms
@@ -365,7 +386,7 @@ const PropertyDetails = () => {
                 <AttachMoney sx={{ mr: 2, color: '#666' }} />
                 <Box>
                   <Typography variant="h6">
-                    ${rooms.reduce((total, room) => total + (room.rentAmount || 0), 0).toLocaleString()}
+                    ${rooms.reduce((total, room) => total + (room.roomRent || room.rentAmount || 0), 0).toLocaleString()}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
                     Total Monthly Rent
@@ -377,7 +398,7 @@ const PropertyDetails = () => {
                 <Home sx={{ mr: 2, color: '#666' }} />
                 <Box>
                   <Typography variant="h6">
-                    {rooms.length > 0 ? Math.round((rooms.filter(room => room.isOccupied).length / rooms.length) * 100) : 0}%
+                    {rooms.length > 0 ? Math.round((rooms.filter(room => room.status === 2 || room.isOccupied).length / rooms.length) * 100) : 0}%
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
                     Occupancy Rate

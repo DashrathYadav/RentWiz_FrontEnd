@@ -13,18 +13,25 @@ export const API_Route = {
   createProperty: "property/create",
   getPropertyById: "property",
   getPropertiesByOwner: "property/owner",
+  searchProperties: "property/search",
+  updateProperty: "property",
+  deleteProperty: "property",
 
   // Room endpoints
   createRoom: "room/create",
   getRoomById: "room",
   getRoomsByProperty: "room/property",
   getRoomsByOwner: "room/owner",
+  searchRooms: "room/search",
+  searchRoomsByProperty: "room/property",
+  searchRoomsByOwner: "room/owner",
 
   // Tenant endpoints
   createTenant: "tenant/create",
   getTenantById: "tenant",
   getTenantsByProperty: "tenant/property",
   getTenantsByOwner: "tenant/owner",
+  searchTenants: "tenant/search",
   updateTenant: "tenant",
 
   // Rent endpoints

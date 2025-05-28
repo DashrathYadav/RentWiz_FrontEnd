@@ -5,7 +5,6 @@ import Loadable from '../components/Loadable';
 
 // project import
 const DashboardLayout = Loadable(lazy(() => import('../layout/homepage/Layout')));
-import LoginTesting from '../pages/auth/LoginTesting';
 import LoginPage from "../components/LoginPage.jsx";
 import OwnerRegisterPage from "../components/OwnerRegister.jsx";
 
@@ -18,10 +17,6 @@ const LoginRoutes = {
             path: '/',
             element: <DashboardLayout />,
             children: [
-                {
-                    path: 'user-login',
-                    element: <LoginTesting />
-                },
                 {
                     path:'login',
                     element: <LoginPage/>

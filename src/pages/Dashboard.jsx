@@ -52,12 +52,16 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      // Fetch all data in parallel
+      // Get current user
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const ownerId = user.id || 1;
+      
+      // Fetch all data in parallel using owner-specific endpoints
       const [properties, tenants, rooms, rents] = await Promise.all([
-        propertyAPI.getAll(),
-        tenantAPI.getAll(),
-        roomAPI.getAll(),
-        rentAPI.getAll()
+        propertyAPI.getByOwner(ownerId),
+        tenantAPI.getByOwner(ownerId),
+        roomAPI.getByOwner(ownerId),
+        rentAPI.getByOwner(ownerId)
       ]);
 
       // Check if the response has data property or if the data is directly in response.data.data

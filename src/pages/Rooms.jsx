@@ -22,7 +22,11 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Pagination,
+  Grid,
+  Card,
+  CardContent
 } from '@mui/material';
 import {
   Add,
@@ -33,41 +37,91 @@ import {
   Room,
   AttachMoney,
   Home,
-  FilterList
+  FilterList,
+  Clear
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { roomAPI, propertyAPI } from '../services/api';
 
 const Rooms = () => {
   const navigate = useNavigate();
+  
+  // Room data and pagination
   const [rooms, setRooms] = useState([]);
-  const [filteredRooms, setFilteredRooms] = useState([]);
+  const [totalRooms, setTotalRooms] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  
+  // Properties for filter dropdown
   const [properties, setProperties] = useState([]);
+  
+  // Loading states
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
+  
+  // Filter states (not applied until "Apply Filter" is clicked)
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProperty, setFilterProperty] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterRoomType, setFilterRoomType] = useState('');
+  const [minRent, setMinRent] = useState('');
+  const [maxRent, setMaxRent] = useState('');
+  
+  // Applied filters (what's actually sent to API)
+  const [appliedFilters, setAppliedFilters] = useState({});
+  
+  // UI states
   const [deleteDialog, setDeleteDialog] = useState({ open: false, room: null });
 
   useEffect(() => {
-    fetchRooms();
+    fetchRooms(); // Use new pagination
     fetchProperties();
-  }, []);
-
-  useEffect(() => {
-    filterRooms();
-  }, [searchTerm, filterProperty, filterStatus, rooms]);
+  }, [currentPage, pageSize, appliedFilters]);
 
   const fetchRooms = async () => {
     try {
       setLoading(true);
-      const response = await roomAPI.getAll();
-      // Handle nested data structure like Dashboard
-      const roomsData = response.data?.data || response.data || [];
-      setRooms(Array.isArray(roomsData) ? roomsData : []);
+      
+      // Prepare search parameters
+      const searchParams = {
+        pageNumber: currentPage,
+        pageSize: pageSize,
+        ...appliedFilters
+      };
+      
+      const response = await roomAPI.search(searchParams);
+      
+      // Handle the API wrapper structure: response.data.data contains the actual paginated data
+      const apiData = response.data?.data || {}; // This is the paginated data wrapper
+      const roomsData = apiData.data || []; // This is the actual rooms array
+      const total = apiData.totalRecords || 0;
+      const totalPagesCount = apiData.totalPages || 0;
+      
+      // Process rooms data to ensure consistent field mapping
+      const processedRooms = Array.isArray(roomsData) ? roomsData.map(room => ({
+        ...room,
+        id: room.roomId || room.id,
+        roomNumber: room.roomNo || room.roomNumber,
+        type: room.roomType || room.type,
+        rentAmount: room.roomRent || room.rentAmount,
+        size: room.roomSize || room.size,
+        description: room.roomDescription || room.description,
+        isOccupied: room.status === "Occupied" || room.status === 2 || room.isOccupied,
+        facility: room.roomFacility || room.facility,
+        pic: room.roomPic || room.pic,
+        propertyId: room.propertyId
+      })) : [];
+      
+      setRooms(processedRooms);
+      setTotalRooms(total);
+      setTotalPages(totalPagesCount);
+      
     } catch (error) {
       console.error('Error fetching rooms:', error);
       setRooms([]);
+      setTotalRooms(0);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
@@ -75,47 +129,77 @@ const Rooms = () => {
 
   const fetchProperties = async () => {
     try {
-      const response = await propertyAPI.getAll();
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const ownerId = user.id || 1;
+      
+      const response = await propertyAPI.getByOwner(ownerId);
       // Handle nested data structure like Dashboard
       const propertiesData = response.data?.data || response.data || [];
-      setProperties(Array.isArray(propertiesData) ? propertiesData : []);
+      
+      // With camelCase serialization enabled in backend, we expect camelCase field names
+      const processedProperties = Array.isArray(propertiesData) ? propertiesData.map(property => ({
+        ...property,
+        // Map specific fields that need different property names
+        id: property.propertyId,
+        name: property.propertyName,
+        type: property.propertyType,
+        description: property.propertyDescription,
+        value: property.propertyValue,
+        isActive: property.isActive !== undefined ? property.isActive : (property.status === 1),
+        facility: property.propertyFacility,
+        rent: property.propertyRent,
+        size: property.propertySize
+      })) : [];
+      
+      setProperties(processedProperties);
     } catch (error) {
       console.error('Error fetching properties:', error);
       setProperties([]);
     }
   };
 
-  const filterRooms = () => {
-    let filtered = rooms;
+  const handleApplyFilters = async () => {
+    setSearching(true);
+    setCurrentPage(1); // Reset to first page when applying new filters
+    
+    // Build applied filters object
+    const filters = {};
+    if (searchTerm.trim()) filters.searchTerm = searchTerm.trim();
+    if (filterProperty) filters.propertyId = parseInt(filterProperty);
+    if (filterStatus) filters.isAvailable = filterStatus === 'available';
+    if (filterRoomType.trim()) filters.roomType = filterRoomType.trim();
+    if (minRent) filters.minRent = parseFloat(minRent);
+    if (maxRent) filters.maxRent = parseFloat(maxRent);
+    
+    setAppliedFilters(filters);
+    setSearching(false);
+  };
 
-    // Text search
-    if (searchTerm) {
-      filtered = filtered.filter(room =>
-        room.roomNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        room.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        room.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setFilterProperty('');
+    setFilterStatus('');
+    setFilterRoomType('');
+    setMinRent('');
+    setMaxRent('');
+    setAppliedFilters({});
+    setCurrentPage(1);
+  };
 
-    // Property filter
-    if (filterProperty) {
-      filtered = filtered.filter(room => room.propertyId === parseInt(filterProperty));
-    }
+  const handlePageChange = (event, newPage) => {
+    setCurrentPage(newPage);
+  };
 
-    // Status filter
-    if (filterStatus) {
-      const isOccupied = filterStatus === 'occupied';
-      filtered = filtered.filter(room => room.isOccupied === isOccupied);
-    }
-
-    setFilteredRooms(filtered);
+  const handlePageSizeChange = (event) => {
+    setPageSize(parseInt(event.target.value));
+    setCurrentPage(1); // Reset to first page when changing page size
   };
 
   const handleDelete = async () => {
     try {
       await roomAPI.delete(deleteDialog.room.id);
       setDeleteDialog({ open: false, room: null });
-      fetchRooms();
+      fetchRooms(); // Refresh the current page
     } catch (error) {
       console.error('Error deleting room:', error);
     }
@@ -130,10 +214,16 @@ const Rooms = () => {
     return isOccupied ? 'error' : 'success';
   };
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setFilterProperty('');
-    setFilterStatus('');
+  const hasUnappliedChanges = () => {
+    const currentFilters = {};
+    if (searchTerm.trim()) currentFilters.searchTerm = searchTerm.trim();
+    if (filterProperty) currentFilters.propertyId = parseInt(filterProperty);
+    if (filterStatus) currentFilters.isAvailable = filterStatus === 'available';
+    if (filterRoomType.trim()) currentFilters.roomType = filterRoomType.trim();
+    if (minRent) currentFilters.minRent = parseFloat(minRent);
+    if (maxRent) currentFilters.maxRent = parseFloat(maxRent);
+    
+    return JSON.stringify(currentFilters) !== JSON.stringify(appliedFilters);
   };
 
   if (loading) {
@@ -166,60 +256,156 @@ const Rooms = () => {
       </Box>
 
       {/* Filters */}
-      <Box mb={3}>
-        <Box display="flex" gap={2} flexWrap="wrap" alignItems="center">
-          <TextField
-            placeholder="Search rooms..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ minWidth: 250 }}
-          />
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Search & Filter Rooms
+          </Typography>
           
-          <FormControl sx={{ minWidth: 180 }}>
-            <InputLabel>Filter by Property</InputLabel>
-            <Select
-              value={filterProperty}
-              onChange={(e) => setFilterProperty(e.target.value)}
-              label="Filter by Property"
-            >
-              <MenuItem value="">All Properties</MenuItem>
-              {properties.map(property => (
-                <MenuItem key={property.id} value={property.id}>
-                  {property.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Grid container spacing={2} alignItems="center">
+            {/* Search Term */}
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                placeholder="Search rooms..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+            
+            {/* Property Filter */}
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth>
+                <InputLabel>Property</InputLabel>
+                <Select
+                  value={filterProperty}
+                  onChange={(e) => setFilterProperty(e.target.value)}
+                  label="Property"
+                >
+                  <MenuItem value="">All Properties</MenuItem>
+                  {properties.map(property => (
+                    <MenuItem key={property.id} value={property.id}>
+                      {property.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
 
-          <FormControl sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              label="Status"
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="available">Available</MenuItem>
-              <MenuItem value="occupied">Occupied</MenuItem>
-            </Select>
-          </FormControl>
+            {/* Status Filter */}
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  label="Status"
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="available">Available</MenuItem>
+                  <MenuItem value="occupied">Occupied</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-          {(searchTerm || filterProperty || filterStatus) && (
+            {/* Room Type Filter */}
+            <Grid item xs={12} md={2}>
+              <TextField
+                fullWidth
+                placeholder="Room Type"
+                value={filterRoomType}
+                onChange={(e) => setFilterRoomType(e.target.value)}
+                label="Room Type"
+              />
+            </Grid>
+
+            {/* Rent Range */}
+            <Grid item xs={6} md={1.5}>
+              <TextField
+                fullWidth
+                placeholder="Min Rent"
+                value={minRent}
+                onChange={(e) => setMinRent(e.target.value)}
+                label="Min Rent"
+                type="number"
+              />
+            </Grid>
+            
+            <Grid item xs={6} md={1.5}>
+              <TextField
+                fullWidth
+                placeholder="Max Rent"
+                value={maxRent}
+                onChange={(e) => setMaxRent(e.target.value)}
+                label="Max Rent"
+                type="number"
+              />
+            </Grid>
+          </Grid>
+
+          {/* Action Buttons */}
+          <Box mt={2} display="flex" gap={1}>
             <Button
-              variant="outlined"
-              onClick={clearFilters}
-              startIcon={<FilterList />}
+              variant="contained"
+              onClick={handleApplyFilters}
+              disabled={searching}
+              sx={{
+                backgroundColor: '#000',
+                '&:hover': { backgroundColor: '#333' }
+              }}
             >
-              Clear Filters
+              {searching ? 'Searching...' : 'Apply Filters'}
             </Button>
-          )}
+            
+            {Object.keys(appliedFilters).length > 0 && (
+              <Button
+                variant="outlined"
+                onClick={handleClearFilters}
+                startIcon={<Clear />}
+              >
+                Clear Filters
+              </Button>
+            )}
+            
+            {hasUnappliedChanges() && (
+              <Chip 
+                label="Filters changed - click Apply to search" 
+                color="warning" 
+                size="small" 
+              />
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* Results Summary */}
+      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="body2" color="textSecondary">
+          Showing {rooms.length} of {totalRooms} rooms
+          {Object.keys(appliedFilters).length > 0 && ' (filtered)'}
+        </Typography>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <Typography variant="body2">Rows per page:</Typography>
+          <FormControl size="small">
+            <Select
+              value={pageSize}
+              onChange={handlePageSizeChange}
+              disabled={loading}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={20}>20</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+            </Select>
+          </FormControl>
         </Box>
       </Box>
 
@@ -238,8 +424,8 @@ const Rooms = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredRooms.length > 0 ? (
-              filteredRooms.map((room) => (
+            {rooms.length > 0 ? (
+              rooms.map((room) => (
                 <TableRow key={room.id} hover>
                   <TableCell>
                     <Box display="flex" alignItems="center">
@@ -314,12 +500,12 @@ const Rooms = () => {
                       No rooms found
                     </Typography>
                     <Typography variant="body2" color="textSecondary" mb={2}>
-                      {searchTerm || filterProperty || filterStatus
+                      {Object.keys(appliedFilters).length > 0
                         ? 'Try adjusting your search terms or filters'
                         : 'Get started by adding your first room'
                       }
                     </Typography>
-                    {!searchTerm && !filterProperty && !filterStatus && (
+                    {Object.keys(appliedFilters).length === 0 && (
                       <Button
                         variant="contained"
                         startIcon={<Add />}
@@ -340,6 +526,22 @@ const Rooms = () => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Box display="flex" justifyContent="center" alignItems="center" mt={3}>
+          <Pagination
+            count={totalPages}
+            page={currentPage}
+            onChange={handlePageChange}
+            disabled={loading || searching}
+            color="primary"
+            size="large"
+            showFirstButton
+            showLastButton
+          />
+        </Box>
+      )}
 
       {/* Floating Action Button */}
       <Fab

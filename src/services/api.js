@@ -56,13 +56,30 @@ export const propertyAPI = {
   getById: (id) => api.get(`/${API_Route.getPropertyById}/${id}`),
   getByOwner: (ownerId) =>
     api.get(`/${API_Route.getPropertiesByOwner}/${ownerId}`),
-  // For dashboard, we'll use getByOwner with current user's ID
-  getAll: () => {
+  // New search endpoint with filters and pagination
+  search: (searchParams = {}) => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const ownerId = user.id || 1; // fallback to 1 for now
-    return api.get(`/${API_Route.getPropertiesByOwner}/${ownerId}`);
+    const ownerId = user.id || 1;
+
+    // Default search parameters
+    const params = {
+      pageNumber: 1,
+      pageSize: 50,
+      ownerId: ownerId,
+      ...searchParams,
+    };
+
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(
+        ([_, value]) => value !== null && value !== undefined && value !== ""
+      )
+    ).toString();
+
+    return api.get(`/${API_Route.searchProperties}?${queryString}`);
   },
-  delete: (id) => api.delete(`/${API_Route.getPropertyById}/${id}`),
+  update: (id, propertyData) =>
+    api.put(`/${API_Route.updateProperty}/${id}`, propertyData),
+  delete: (id) => api.delete(`/${API_Route.deleteProperty}/${id}`),
 };
 
 // Room API
@@ -72,11 +89,28 @@ export const roomAPI = {
   getByProperty: (propertyId) =>
     api.get(`/${API_Route.getRoomsByProperty}/${propertyId}`),
   getByOwner: (ownerId) => api.get(`/${API_Route.getRoomsByOwner}/${ownerId}`),
-  // For dashboard, we'll use getByOwner with current user's ID
-  getAll: () => {
+  // New search endpoint with filters and pagination
+  search: (searchParams = {}) => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const ownerId = user.id || 1; // fallback to 1 for now
-    return api.get(`/${API_Route.getRoomsByOwner}/${ownerId}`);
+    const ownerId = user.id || 1;
+
+    // Default search parameters
+    const params = {
+      pageNumber: 1,
+      pageSize: 50,
+      ownerId: ownerId,
+      ...searchParams,
+    };
+
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(
+        ([_, value]) => value !== null && value !== undefined && value !== ""
+      )
+    ).toString();
+
+    return api.get(
+      `/${API_Route.searchRoomsByOwner}/${ownerId}/search?${queryString}`
+    );
   },
   delete: (id) => api.delete(`/${API_Route.getRoomById}/${id}`),
 };
@@ -91,11 +125,26 @@ export const tenantAPI = {
     api.get(`/${API_Route.getTenantsByOwner}/${ownerId}`),
   update: (id, tenantData) =>
     api.put(`/${API_Route.updateTenant}/${id}`, tenantData),
-  // For dashboard, we'll use getByOwner with current user's ID
-  getAll: () => {
+  // New search endpoint with filters and pagination
+  search: (searchParams = {}) => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const ownerId = user.id || 1; // fallback to 1 for now
-    return api.get(`/${API_Route.getTenantsByOwner}/${ownerId}`);
+    const ownerId = user.id || 1;
+
+    // Default search parameters
+    const params = {
+      pageNumber: 1,
+      pageSize: 50,
+      ownerId: ownerId,
+      ...searchParams,
+    };
+
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(
+        ([_, value]) => value !== null && value !== undefined && value !== ""
+      )
+    ).toString();
+
+    return api.get(`/${API_Route.searchTenants}?${queryString}`);
   },
   delete: (id) => api.delete(`/${API_Route.getTenantById}/${id}`),
 };
@@ -109,12 +158,6 @@ export const rentAPI = {
   getByTenant: (tenantId) =>
     api.get(`/${API_Route.getRentsByTenant}/${tenantId}`),
   getByOwner: (ownerId) => api.get(`/${API_Route.getRentsByOwner}/${ownerId}`),
-  // For dashboard, we'll use getByOwner with current user's ID
-  getAll: () => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const ownerId = user.id || 1; // fallback to 1 for now
-    return api.get(`/${API_Route.getRentsByOwner}/${ownerId}`);
-  },
   delete: (id) => api.delete(`/${API_Route.getRentById}/${id}`),
 };
 

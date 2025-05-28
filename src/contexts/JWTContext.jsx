@@ -96,7 +96,6 @@ export const JWTProvider = ({ children }) => {
                 return;
             }
         } catch (err) {
-            console.error('Token verification error:', err);
             setSession(null);
             dispatch({
                 type: LOGOUT
