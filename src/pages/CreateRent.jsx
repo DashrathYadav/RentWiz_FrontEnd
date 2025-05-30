@@ -57,13 +57,20 @@ const CreateRent = () => {
 
   const fetchInitialData = async () => {
     try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const ownerId = user.id || 1;
+      
       const [tenantsResponse, roomsResponse] = await Promise.all([
-        tenantAPI.getAll(),
-        roomAPI.getAll()
+        tenantAPI.getByOwner(ownerId),
+        roomAPI.getByOwner(ownerId)
       ]);
-      setTenants(tenantsResponse.data);
-      setRooms(roomsResponse.data);
-      setAvailableRooms(roomsResponse.data.filter(room => room.status === 'Occupied'));
+      
+      const tenantsData = tenantsResponse.data?.data || tenantsResponse.data || [];
+      const roomsData = roomsResponse.data?.data || roomsResponse.data || [];
+      
+      setTenants(tenantsData);
+      setRooms(roomsData);
+      setAvailableRooms(roomsData.filter(room => room.status === 'Occupied'));
     } catch (error) {
       setError('Failed to load data');
     }

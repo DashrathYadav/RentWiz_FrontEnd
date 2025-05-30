@@ -1,94 +1,70 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
-  Typography,
-  Grid,
   Card,
   CardContent,
-  Button,
+  Typography,
+  Grid,
   Chip,
-  Divider,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   IconButton,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Divider,
+  Avatar,
+  Skeleton,
+  Alert,
+  Paper,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Breadcrumbs,
+  Link
 } from '@mui/material';
 import {
   ArrowBack,
   Edit,
   Delete,
-  Add,
-  Room,
-  People,
-  AttachMoney,
   Home,
   LocationOn,
-  Visibility
+  AttachMoney,
+  Straighten,
+  Description,
+  Business,
+  Info,
+  CheckCircle,
+  Cancel,
+  Schedule,
+  Room
 } from '@mui/icons-material';
-import { useParams, useNavigate } from 'react-router-dom';
-import { propertyAPI, roomAPI } from '../services/api';
+import { propertyAPI } from '../services/api';
 
 const PropertyDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [property, setProperty] = useState(null);
-  const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [deleteDialog, setDeleteDialog] = useState(false);
+  const [error, setError] = useState(null);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false });
 
   useEffect(() => {
-    if (id) {
-      fetchPropertyDetails();
-      fetchPropertyRooms();
-    }
+    fetchPropertyDetails();
   }, [id]);
 
   const fetchPropertyDetails = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await propertyAPI.getById(id);
-      // Handle the Result<T> wrapper structure from backend
-      const backendProperty = response.data?.data || response.data;
-      
-      // With camelCase serialization enabled in backend, we expect camelCase field names
-      if (backendProperty) {
-        const processedProperty = {
-          ...backendProperty,
-          // Map specific fields that need different property names
-          id: backendProperty.propertyId,
-          name: backendProperty.propertyName,
-          type: backendProperty.propertyType,
-          description: backendProperty.propertyDescription,
-          value: backendProperty.propertyValue,
-          isActive: backendProperty.isActive !== undefined ? backendProperty.isActive : (backendProperty.status === 1),
-          facility: backendProperty.propertyFacility,
-          rent: backendProperty.propertyRent,
-          size: backendProperty.propertySize
-        };
-        setProperty(processedProperty);
-      }
+      const propertyData = response.data?.data || response.data;
+      setProperty(propertyData);
     } catch (error) {
       console.error('Error fetching property details:', error);
-    }
-  };
-
-  const fetchPropertyRooms = async () => {
-    try {
-      // Use the dedicated endpoint to get rooms by property ID
-      const response = await roomAPI.getByProperty(id);
-      // Handle the Result<T> wrapper structure from backend
-      const roomsData = response.data?.data || response.data || [];
-      setRooms(Array.isArray(roomsData) ? roomsData : []);
-    } catch (error) {
-      console.error('Error fetching property rooms:', error);
-      setRooms([]);
+      setError(error.response?.data?.message || 'Failed to load property details');
     } finally {
       setLoading(false);
     }
@@ -97,41 +73,108 @@ const PropertyDetails = () => {
   const handleDelete = async () => {
     try {
       await propertyAPI.delete(id);
-      navigate('/properties');
+      setDeleteDialog({ open: false });
+      navigate('/properties', { 
+        state: { message: 'Property deleted successfully' }
+      });
     } catch (error) {
       console.error('Error deleting property:', error);
+      setError(error.response?.data?.message || 'Failed to delete property');
+      setDeleteDialog({ open: false });
     }
+  };
+
+  const getStatusLabel = (status) => {
+    const statusMap = {
+      1: 'Available',
+      2: 'Occupied',
+      3: 'Under Maintenance',
+      4: 'Unavailable'
+    };
+    return statusMap[status] || 'Unknown';
+  };
+
+  const getStatusColor = (status) => {
+    const colorMap = {
+      1: 'success',    // Available
+      2: 'primary',    // Occupied
+      3: 'warning',    // Under Maintenance
+      4: 'error'       // Unavailable
+    };
+    return colorMap[status] || 'default';
   };
 
   const getPropertyTypeColor = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'apartment': return 'primary';
-      case 'house': return 'success';
-      case 'condo': return 'warning';
-      case 'commercial': return 'error';
-      default: return 'default';
-    }
+    const colorMap = {
+      'House': 'primary',
+      'Apartment': 'secondary',
+      'Condo': 'info',
+      'Townhouse': 'success',
+      'Villa': 'warning'
+    };
+    return colorMap[type] || 'default';
   };
 
-  const getRoomStatusColor = (isOccupied) => {
-    return isOccupied ? 'error' : 'success';
+  const formatCurrency = (amount, currencyCode = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currencyCode || 'USD'
+    }).format(amount || 0);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography>Loading property details...</Typography>
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+        <Skeleton variant="rectangular" height={60} sx={{ mb: 3 }} />
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Skeleton variant="rectangular" height={400} />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Skeleton variant="rectangular" height={400} />
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+        <Button
+          startIcon={<ArrowBack />}
+          onClick={() => navigate('/properties')}
+          variant="outlined"
+        >
+          Back to Properties
+        </Button>
       </Box>
     );
   }
 
   if (!property) {
     return (
-      <Box p={3}>
-        <Typography variant="h6" color="error">
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+        <Alert severity="warning" sx={{ mb: 3 }}>
           Property not found
-        </Typography>
-        <Button startIcon={<ArrowBack />} onClick={() => navigate('/properties')}>
+        </Alert>
+        <Button
+          startIcon={<ArrowBack />}
+          onClick={() => navigate('/properties')}
+          variant="outlined"
+        >
           Back to Properties
         </Button>
       </Box>
@@ -139,271 +182,302 @@ const PropertyDetails = () => {
   }
 
   return (
-    <Box p={3}>
+    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+      {/* Breadcrumbs */}
+      <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 3 }}>
+        <Link
+          color="inherit"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('/properties');
+          }}
+          sx={{ display: 'flex', alignItems: 'center' }}
+        >
+          <Home sx={{ mr: 0.5 }} fontSize="inherit" />
+          Properties
+        </Link>
+        <Typography color="text.primary" sx={{ display: 'flex', alignItems: 'center' }}>
+          <Room sx={{ mr: 0.5 }} fontSize="inherit" />
+          {property.propertyName}
+        </Typography>
+      </Breadcrumbs>
+
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box display="flex" alignItems="center">
-          <IconButton onClick={() => navigate('/properties')} sx={{ mr: 1 }}>
-            <ArrowBack />
-          </IconButton>
-          <Typography variant="h4" color="#000" fontWeight="bold">
-            {property.name}
-          </Typography>
+      <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+          <Box display="flex" alignItems="center">
+            <Avatar sx={{ bgcolor: 'primary.main', mr: 2, width: 56, height: 56 }}>
+              <Home fontSize="large" />
+            </Avatar>
+            <Box>
+              <Typography variant="h4" fontWeight="bold" gutterBottom>
+                {property.propertyName}
+              </Typography>
+              <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+                <Chip
+                  label={property.propertyType}
+                  color={getPropertyTypeColor(property.propertyType)}
+                  size="medium"
+                />
+                <Chip
+                  label={getStatusLabel(property.status)}
+                  color={getStatusColor(property.status)}
+                  size="medium"
+                />
+                <Typography variant="body2" color="textSecondary">
+                  ID: {property.propertyId}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+          <Box display="flex" gap={1}>
+            <Button
+              startIcon={<ArrowBack />}
+              onClick={() => navigate('/properties')}
+              variant="outlined"
+            >
+              Back
+            </Button>
+            <Button
+              startIcon={<Edit />}
+              onClick={() => navigate(`/properties/${property.propertyId}/edit`)}
+              variant="contained"
+              color="primary"
+            >
+              Edit
+            </Button>
+            <IconButton
+              onClick={() => setDeleteDialog({ open: true })}
+              color="error"
+              title="Delete Property"
+            >
+              <Delete />
+            </IconButton>
+          </Box>
         </Box>
-        <Box>
-          <Button
-            variant="outlined"
-            startIcon={<Edit />}
-            onClick={() => navigate(`/properties/${id}/edit`)}
-            sx={{ mr: 1, borderColor: '#000', color: '#000' }}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Delete />}
-            onClick={() => setDeleteDialog(true)}
-            color="error"
-          >
-            Delete
-          </Button>
-        </Box>
-      </Box>
+      </Paper>
 
       <Grid container spacing={3}>
-        {/* Property Information */}
+        {/* Main Details */}
         <Grid item xs={12} md={8}>
-          <Card sx={{ mb: 3, border: '1px solid #e0e0e0' }}>
+          <Card elevation={2} sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom color="#000" fontWeight="bold">
-                Property Information
+              <Typography variant="h6" gutterBottom>
+                Property Details
               </Typography>
               <Divider sx={{ mb: 2 }} />
               
-              <Grid container spacing={2}>
+              <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    Property Name
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    {property.name}
-                  </Typography>
+                  <List dense>
+                    <ListItem>
+                      <ListItemIcon>
+                        <Business color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Property Type"
+                        secondary={property.propertyType}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <Straighten color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Property Size"
+                        secondary={property.propertySize || 'Not specified'}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <Schedule color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Created Date"
+                        secondary={formatDate(property.creationDate)}
+                      />
+                    </ListItem>
+                  </List>
                 </Grid>
-                
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    Type
-                  </Typography>
-                  <Box mb={2}>
-                    <Chip
-                      label={property.type || 'Unknown'}
-                      color={getPropertyTypeColor(property.type)}
-                      size="small"
-                    />
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    Description
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    {property.description || 'No description available'}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    Address
-                  </Typography>
-                  <Box display="flex" alignItems="center" mb={2}>
-                    <LocationOn sx={{ mr: 1, color: '#666' }} />
-                    <Typography variant="body1">
-                      {property.address || 'No address provided'}
-                    </Typography>
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    Property Value
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    {property.value ? `$${property.value.toLocaleString()}` : 'Not specified'}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    Status
-                  </Typography>
-                  <Box>
-                    <Chip
-                      label={property.isActive ? 'Active' : 'Inactive'}
-                      color={property.isActive ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </Box>
+                  <List dense>
+                    <ListItem>
+                      <ListItemIcon>
+                        <AttachMoney color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Monthly Rent"
+                        secondary={formatCurrency(property.propertyRent, property.currencyCode)}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <AttachMoney color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Property Value"
+                        secondary={formatCurrency(property.propertyValue, property.currencyCode)}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <Info color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Owner ID"
+                        secondary={property.ownerId}
+                      />
+                    </ListItem>
+                  </List>
                 </Grid>
               </Grid>
             </CardContent>
           </Card>
 
-          {/* Rooms Section */}
-          <Card sx={{ border: '1px solid #e0e0e0' }}>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6" color="#000" fontWeight="bold">
-                  Rooms ({rooms.length})
+          {/* Description */}
+          {property.propertyDescription && (
+            <Card elevation={2} sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Description
                 </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
-                  onClick={() => navigate(`/rooms/create?propertyId=${id}`)}
-                  sx={{
-                    backgroundColor: '#000',
-                    color: '#fff',
-                    '&:hover': { backgroundColor: '#333' }
-                  }}
-                >
-                  Add Room
-                </Button>
-              </Box>
-              <Divider sx={{ mb: 2 }} />
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="body1" paragraph>
+                  {property.propertyDescription}
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
 
-              {rooms.length > 0 ? (
-                <TableContainer component={Paper} sx={{ border: '1px solid #e0e0e0' }}>
-                  <Table>
-                    <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableRow>
-                        <TableCell>Room Number</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell>Rent Amount</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {rooms.map((room) => (
-                        <TableRow key={room.roomId || room.id}>
-                          <TableCell>
-                            <Box display="flex" alignItems="center">
-                              <Room sx={{ mr: 1, color: '#666' }} />
-                              {room.roomNo || room.roomNumber}
-                            </Box>
-                          </TableCell>
-                          <TableCell>{room.roomType || room.type || 'Standard'}</TableCell>
-                          <TableCell>
-                            ${(room.roomRent || room.rentAmount || 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={room.status === 2 || room.isOccupied ? 'Occupied' : 'Available'}
-                              color={getRoomStatusColor(room.status === 2 || room.isOccupied)}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <IconButton
-                              size="small"
-                              onClick={() => navigate(`/rooms/${room.roomId || room.id}`)}
-                              title="View Room"
-                            >
-                              <Visibility />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => navigate(`/rooms/${room.roomId || room.id}/edit`)}
-                              title="Edit Room"
-                            >
-                              <Edit />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Box textAlign="center" py={4}>
-                  <Room sx={{ fontSize: 48, color: '#ccc', mb: 2 }} />
-                  <Typography variant="h6" color="textSecondary" gutterBottom>
-                    No rooms added yet
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary" mb={2}>
-                    Add rooms to this property to start managing tenants and rent
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    startIcon={<Add />}
-                    onClick={() => navigate(`/rooms/create?propertyId=${id}`)}
-                    sx={{
-                      backgroundColor: '#000',
-                      color: '#fff',
-                      '&:hover': { backgroundColor: '#333' }
-                    }}
-                  >
-                    Add First Room
-                  </Button>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
+          {/* Facilities */}
+          {property.propertyFacility && (
+            <Card elevation={2} sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Facilities & Amenities
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="body1" paragraph>
+                  {property.propertyFacility}
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Notes */}
+          {property.note && (
+            <Card elevation={2}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Additional Notes
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="body1" paragraph>
+                  {property.note}
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
         </Grid>
 
-        {/* Quick Stats Sidebar */}
+        {/* Sidebar */}
         <Grid item xs={12} md={4}>
-          <Card sx={{ border: '1px solid #e0e0e0' }}>
+          {/* Address Information */}
+          {property.address && (
+            <Card elevation={2} sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  <LocationOn sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Location
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                
+                <Box mb={2}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Address
+                  </Typography>
+                  <Typography variant="body1" paragraph>
+                    {property.address.street}
+                  </Typography>
+                </Box>
+
+                {property.address.landMark && (
+                  <Box mb={2}>
+                    <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                      Landmark
+                    </Typography>
+                    <Typography variant="body1" paragraph>
+                      {property.address.landMark}
+                    </Typography>
+                  </Box>
+                )}
+
+                <Box mb={2}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Area
+                  </Typography>
+                  <Typography variant="body1" paragraph>
+                    {property.address.area}
+                  </Typography>
+                </Box>
+
+                <Box mb={2}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    City & Pincode
+                  </Typography>
+                  <Typography variant="body1" paragraph>
+                    {property.address.city} - {property.address.pincode}
+                  </Typography>
+                </Box>
+
+                {property.address.state && (
+                  <Box mb={2}>
+                    <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                      State
+                    </Typography>
+                    <Typography variant="body1" paragraph>
+                      {property.address.state}
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quick Actions */}
+          <Card elevation={2}>
             <CardContent>
-              <Typography variant="h6" gutterBottom color="#000" fontWeight="bold">
-                Quick Stats
+              <Typography variant="h6" gutterBottom>
+                Quick Actions
               </Typography>
               <Divider sx={{ mb: 2 }} />
               
-              <Box display="flex" alignItems="center" mb={2}>
-                <Room sx={{ mr: 2, color: '#666' }} />
-                <Box>
-                  <Typography variant="h6">{rooms.length}</Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    Total Rooms
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box display="flex" alignItems="center" mb={2}>
-                <People sx={{ mr: 2, color: '#666' }} />
-                <Box>
-                  <Typography variant="h6">
-                    {rooms.filter(room => room.status === 2 || room.isOccupied).length}
-                  </Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    Occupied Rooms
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box display="flex" alignItems="center" mb={2}>
-                <AttachMoney sx={{ mr: 2, color: '#666' }} />
-                <Box>
-                  <Typography variant="h6">
-                    ${rooms.reduce((total, room) => total + (room.roomRent || room.rentAmount || 0), 0).toLocaleString()}
-                  </Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    Total Monthly Rent
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box display="flex" alignItems="center">
-                <Home sx={{ mr: 2, color: '#666' }} />
-                <Box>
-                  <Typography variant="h6">
-                    {rooms.length > 0 ? Math.round((rooms.filter(room => room.status === 2 || room.isOccupied).length / rooms.length) * 100) : 0}%
-                  </Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    Occupancy Rate
-                  </Typography>
-                </Box>
+              <Box display="flex" flexDirection="column" gap={2}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<Room />}
+                  onClick={() => navigate(`/rooms?propertyId=${property.propertyId}`)}
+                >
+                  View Rooms
+                </Button>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<Business />}
+                  onClick={() => navigate(`/tenants?propertyId=${property.propertyId}`)}
+                >
+                  View Tenants
+                </Button>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<AttachMoney />}
+                  onClick={() => navigate(`/rents?propertyId=${property.propertyId}`)}
+                >
+                  View Rent Records
+                </Button>
               </Box>
             </CardContent>
           </Card>
@@ -411,18 +485,37 @@ const PropertyDetails = () => {
       </Grid>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialog} onClose={() => setDeleteDialog(false)}>
-        <DialogTitle>Delete Property</DialogTitle>
+      <Dialog
+        open={deleteDialog.open}
+        onClose={() => setDeleteDialog({ open: false })}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'error.main' }}>
+          Delete Property
+        </DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{property.name}"? 
-            This action cannot be undone and will also delete all associated rooms.
+          <Typography variant="body1" paragraph>
+            Are you sure you want to delete <strong>"{property.propertyName}"</strong>?
+          </Typography>
+          <Typography variant="body2" color="textSecondary" paragraph>
+            This action cannot be undone. All associated rooms, tenants, and rent records may also be affected.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialog(false)}>Cancel</Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
-            Delete
+          <Button 
+            onClick={() => setDeleteDialog({ open: false })}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDelete} 
+            color="error" 
+            variant="contained"
+            startIcon={<Delete />}
+          >
+            Delete Property
           </Button>
         </DialogActions>
       </Dialog>

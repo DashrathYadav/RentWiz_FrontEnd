@@ -11,21 +11,22 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Switch,
-  FormControlLabel,
   IconButton,
   Alert,
-  InputAdornment
+  InputAdornment,
+  Divider
 } from '@mui/material';
 import {
   ArrowBack,
   Save,
   Home,
   AttachMoney,
-  LocationOn
+  Description,
+  Business
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
-import { propertyAPI, ownerAPI } from '../services/api';
+import { propertyAPI, lookupsAPI } from '../services/api';
+import AddressForm from '../components/AddressForm';
 
 const CreateProperty = () => {
   const navigate = useNavigate();
@@ -33,56 +34,115 @@ const CreateProperty = () => {
   const isEdit = Boolean(id);
 
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    address: '',
-    type: '',
-    value: '',
-    ownerId: '',
-    isActive: true
+    propertyName: '',
+    propertyType: '',
+    propertySize: '',
+    propertyRent: '',
+    currencyCode: '',
+    status: '',
+    propertyDescription: '',
+    propertyFacility: '',
+    ownerId: ''
+  });
+
+  const [addressData, setAddressData] = useState({
+    street: '',
+    landMark: '',
+    area: '',
+    city: '',
+    pincode: '',
+    stateId: '',
+    countryId: ''
   });
   
-  const [owners, setOwners] = useState([]);
+  const [propertyTypes, setPropertyTypes] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
+  const [availabilityStatuses, setAvailabilityStatuses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [addressErrors, setAddressErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
-    fetchOwners();
+    fetchInitialData();
     if (isEdit) {
       fetchProperty();
     }
   }, [id, isEdit]);
 
-  const fetchOwners = async () => {
+  const fetchInitialData = async () => {
     try {
-      const response = await ownerAPI.getAll();
-      setOwners(response.data || []);
+      const [propertyTypesResponse, currenciesResponse, statusesResponse] = await Promise.all([
+        lookupsAPI.getPropertyTypes(),
+        lookupsAPI.getCurrencies(),
+        lookupsAPI.getAvailabilityStatuses()
+      ]);
+      
+      // Handle the API response structure: { Success: true, Data: [...], Message: "..." }
+      setPropertyTypes(propertyTypesResponse.data?.Data || propertyTypesResponse.data?.data || []);
+      setCurrencies(currenciesResponse.data?.Data || currenciesResponse.data?.data || []);
+      setAvailabilityStatuses(statusesResponse.data?.Data || statusesResponse.data?.data || []);
+      
+      // Set default owner from user context
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user.id) {
+        setFormData(prev => ({ ...prev, ownerId: user.id }));
+      }
     } catch (error) {
-      console.error('Error fetching owners:', error);
+      console.error('Error fetching initial data:', error);
+      // Set fallback values
+      setPropertyTypes([
+        { id: 1, name: 'Apartment', value: 'Apartment' },
+        { id: 2, name: 'House', value: 'House' },
+        { id: 3, name: 'Studio', value: 'Studio' },
+        { id: 4, name: 'Condo', value: 'Condo' },
+        { id: 5, name: 'Other', value: 'Other' }
+      ]);
+      setCurrencies([{ id: 8, name: 'INR', value: 'INR' }]);
+      setAvailabilityStatuses([
+        { id: 1, name: 'Available', value: 'Available' },
+        { id: 2, name: 'Rented', value: 'Rented' },
+        { id: 3, name: 'UnderMaintenance', value: 'UnderMaintenance' }
+      ]);
     }
   };
 
   const fetchProperty = async () => {
     try {
       const response = await propertyAPI.getById(id);
-      const property = response.data;
+      const property = response.data?.data || response.data;
+      
       setFormData({
-        name: property.name || '',
-        description: property.description || '',
-        address: property.address || '',
-        type: property.type || '',
-        value: property.value || '',
-        ownerId: property.ownerId || '',
-        isActive: property.isActive !== false
+        propertyName: property.propertyName || '',
+        propertyType: property.propertyType || '',
+        propertySize: property.propertySize || '',
+        propertyRent: property.propertyRent || '',
+        currencyCode: property.currencyCode || '',
+        status: property.status || '',
+        propertyDescription: property.propertyDescription || '',
+        propertyFacility: property.propertyFacility || '',
+        ownerId: property.ownerId || ''
       });
+      
+      // If property has address data, set it
+      if (property.address) {
+        setAddressData({
+          street: property.address.street || '',
+          landMark: property.address.landMark || '',
+          area: property.address.area || '',
+          city: property.address.city || '',
+          pincode: property.address.pincode || '',
+          stateId: property.address.stateId || '',
+          countryId: property.address.countryId || ''
+        });
+      }
     } catch (error) {
       console.error('Error fetching property:', error);
     }
   };
 
   const handleChange = (field) => (event) => {
-    const value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+    const value = event.target.value;
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -97,31 +157,76 @@ const CreateProperty = () => {
     }
   };
 
+  const handleAddressChange = (newAddressData) => {
+    setAddressData(newAddressData);
+    
+    // Clear address errors
+    setAddressErrors({});
+  };
+
   const validateForm = () => {
     const newErrors = {};
+    const newAddressErrors = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'Property name is required';
+    // Property validations
+    if (!formData.propertyName.trim()) {
+      newErrors.propertyName = 'Property name is required';
     }
 
-    if (!formData.address.trim()) {
-      newErrors.address = 'Address is required';
+    if (!formData.propertyType) {
+      newErrors.propertyType = 'Property type is required';
     }
 
-    if (!formData.type) {
-      newErrors.type = 'Property type is required';
+    if (!formData.propertySize.trim()) {
+      newErrors.propertySize = 'Property size is required';
+    }
+
+    if (!formData.propertyRent || parseFloat(formData.propertyRent) <= 0) {
+      newErrors.propertyRent = 'Valid property rent is required';
+    }
+
+    if (!formData.status) {
+      newErrors.status = 'Status is required';
+    }
+
+    if (!formData.propertyDescription.trim()) {
+      newErrors.propertyDescription = 'Property description is required';
     }
 
     if (!formData.ownerId) {
       newErrors.ownerId = 'Owner is required';
     }
 
-    if (formData.value && isNaN(parseFloat(formData.value))) {
-      newErrors.value = 'Property value must be a valid number';
+    // Address validations
+    if (!addressData.street.trim()) {
+      newAddressErrors.street = 'Street address is required';
+    }
+
+    if (!addressData.area.trim()) {
+      newAddressErrors.area = 'Area is required';
+    }
+
+    if (!addressData.city.trim()) {
+      newAddressErrors.city = 'City is required';
+    }
+
+    if (!addressData.pincode.trim()) {
+      newAddressErrors.pincode = 'Pincode is required';
+    } else if (!/^\d{6}$/.test(addressData.pincode)) {
+      newAddressErrors.pincode = 'Pincode must be 6 digits';
+    }
+
+    if (!addressData.stateId) {
+      newAddressErrors.stateId = 'State is required';
+    }
+
+    if (!addressData.countryId) {
+      newAddressErrors.countryId = 'Country is required';
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setAddressErrors(newAddressErrors);
+    return Object.keys(newErrors).length === 0 && Object.keys(newAddressErrors).length === 0;
   };
 
   const handleSubmit = async (event) => {
@@ -135,37 +240,55 @@ const CreateProperty = () => {
     setSubmitError('');
 
     try {
-      const submitData = {
-        ...formData,
-        value: formData.value ? parseFloat(formData.value) : null,
-        ownerId: parseInt(formData.ownerId)
+      // Create property with embedded address in a single API call
+      const propertyData = {
+        propertyName: formData.propertyName,
+        propertyType: parseInt(formData.propertyType),
+        propertySize: formData.propertySize,
+        propertyRent: parseFloat(formData.propertyRent),
+        currencyCode: formData.currencyCode ? parseInt(formData.currencyCode) : null,
+        status: parseInt(formData.status),
+        propertyDescription: formData.propertyDescription,
+        propertyFacility: formData.propertyFacility || '',
+        ownerId: parseInt(formData.ownerId),
+        address: {
+          street: addressData.street,
+          landMark: addressData.landMark,
+          area: addressData.area,
+          city: addressData.city,
+          pincode: addressData.pincode,
+          stateId: parseInt(addressData.stateId),
+          countryId: parseInt(addressData.countryId)
+        }
       };
 
+      let response;
       if (isEdit) {
-        await propertyAPI.update(id, submitData);
+        // For edit mode, we might need to keep the old approach or create a new update endpoint
+        // For now, let's focus on the create functionality
+        response = await propertyAPI.update(id, propertyData);
       } else {
-        await propertyAPI.create(submitData);
+        response = await propertyAPI.create(propertyData);
       }
 
-      navigate('/properties');
+      // Handle the response
+      if (response.status === 200 || response.status === 201) {
+        navigate('/properties', { 
+          state: { 
+            message: `Property ${isEdit ? 'updated' : 'created'} successfully!`,
+            severity: 'success'
+          }
+        });
+      } else {
+        throw new Error('Failed to save property');
+      }
     } catch (error) {
-      console.error('Error submitting property:', error);
-      setSubmitError(error.response?.data?.message || 'An error occurred while saving the property');
+      console.error('Error saving property:', error);
+      setSubmitError(error.message || `Failed to ${isEdit ? 'update' : 'create'} property. Please try again.`);
     } finally {
       setLoading(false);
     }
   };
-
-  const propertyTypes = [
-    'Apartment',
-    'House',
-    'Condo',
-    'Townhouse',
-    'Commercial',
-    'Office',
-    'Warehouse',
-    'Other'
-  ];
 
   return (
     <Box p={3}>
@@ -179,7 +302,7 @@ const CreateProperty = () => {
         </Typography>
       </Box>
 
-      <Card sx={{ maxWidth: 800, border: '1px solid #e0e0e0' }}>
+      <Card sx={{ maxWidth: 1000, border: '1px solid #e0e0e0' }}>
         <CardContent>
           <form onSubmit={handleSubmit}>
             {submitError && (
@@ -188,16 +311,20 @@ const CreateProperty = () => {
               </Alert>
             )}
 
+            <Typography variant="h6" sx={{ mb: 3, color: '#1976d2' }}>
+              Property Information
+            </Typography>
+
             <Grid container spacing={3}>
               {/* Property Name */}
-              <Grid item xs={12}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
                   label="Property Name"
-                  value={formData.name}
-                  onChange={handleChange('name')}
-                  error={!!errors.name}
-                  helperText={errors.name}
+                  value={formData.propertyName}
+                  onChange={handleChange('propertyName')}
+                  error={!!errors.propertyName}
+                  helperText={errors.propertyName}
                   required
                   InputProps={{
                     startAdornment: (
@@ -209,94 +336,54 @@ const CreateProperty = () => {
                 />
               </Grid>
 
-              {/* Description */}
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={3}
-                  label="Description"
-                  value={formData.description}
-                  onChange={handleChange('description')}
-                  placeholder="Enter property description..."
-                />
-              </Grid>
-
-              {/* Address */}
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Address"
-                  value={formData.address}
-                  onChange={handleChange('address')}
-                  error={!!errors.address}
-                  helperText={errors.address}
-                  required
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LocationOn />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-
-              {/* Property Type and Owner */}
+              {/* Property Type */}
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth error={!!errors.type} required>
+                <FormControl fullWidth error={!!errors.propertyType} required>
                   <InputLabel>Property Type</InputLabel>
                   <Select
-                    value={formData.type}
-                    onChange={handleChange('type')}
+                    value={formData.propertyType}
+                    onChange={handleChange('propertyType')}
                     label="Property Type"
                   >
                     {propertyTypes.map(type => (
-                      <MenuItem key={type} value={type}>
-                        {type}
+                      <MenuItem key={type.id || type.Id} value={type.id || type.Id}>
+                        {type.name || type.Name}
                       </MenuItem>
                     ))}
                   </Select>
-                  {errors.type && (
+                  {errors.propertyType && (
                     <Typography variant="caption" color="error" sx={{ ml: 2, mt: 0.5 }}>
-                      {errors.type}
+                      {errors.propertyType}
                     </Typography>
                   )}
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth error={!!errors.ownerId} required>
-                  <InputLabel>Owner</InputLabel>
-                  <Select
-                    value={formData.ownerId}
-                    onChange={handleChange('ownerId')}
-                    label="Owner"
-                  >
-                    {owners.map(owner => (
-                      <MenuItem key={owner.id} value={owner.id}>
-                        {owner.firstName} {owner.lastName}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors.ownerId && (
-                    <Typography variant="caption" color="error" sx={{ ml: 2, mt: 0.5 }}>
-                      {errors.ownerId}
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-
-              {/* Property Value */}
+              {/* Property Size */}
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="Property Value"
+                  label="Property Size"
+                  value={formData.propertySize}
+                  onChange={handleChange('propertySize')}
+                  error={!!errors.propertySize}
+                  helperText={errors.propertySize || 'e.g., 2BHK, 1500 sq ft'}
+                  required
+                  placeholder="e.g., 2BHK, 1500 sq ft"
+                />
+              </Grid>
+
+              {/* Property Rent */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Property Rent"
                   type="number"
-                  value={formData.value}
-                  onChange={handleChange('value')}
-                  error={!!errors.value}
-                  helperText={errors.value || 'Optional - Enter estimated property value'}
+                  value={formData.propertyRent}
+                  onChange={handleChange('propertyRent')}
+                  error={!!errors.propertyRent}
+                  helperText={errors.propertyRent}
+                  required
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -307,50 +394,119 @@ const CreateProperty = () => {
                 />
               </Grid>
 
-              {/* Active Status */}
+              {/* Currency */}
               <Grid item xs={12} sm={6}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.isActive}
-                      onChange={handleChange('isActive')}
-                      color="primary"
-                    />
-                  }
-                  label="Active Property"
-                  sx={{ mt: 2 }}
-                />
-                <Typography variant="caption" color="textSecondary" display="block">
-                  Active properties are available for rent management
-                </Typography>
+                <FormControl fullWidth>
+                  <InputLabel>Currency</InputLabel>
+                  <Select
+                    value={formData.currencyCode}
+                    onChange={handleChange('currencyCode')}
+                    label="Currency"
+                  >
+                    {currencies.map(currency => (
+                      <MenuItem key={currency.id || currency.Id} value={currency.id || currency.Id}>
+                        {currency.name || currency.Name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Grid>
 
-              {/* Action Buttons */}
+              {/* Status */}
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth error={!!errors.status} required>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={formData.status}
+                    onChange={handleChange('status')}
+                    label="Status"
+                  >
+                    {availabilityStatuses.map(status => (
+                      <MenuItem key={status.id || status.Id} value={status.id || status.Id}>
+                        {status.name || status.Name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {errors.status && (
+                    <Typography variant="caption" color="error" sx={{ ml: 2, mt: 0.5 }}>
+                      {errors.status}
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
+
+              {/* Property Description */}
               <Grid item xs={12}>
-                <Box display="flex" gap={2} justifyContent="flex-end" mt={2}>
-                  <Button
-                    variant="outlined"
-                    onClick={() => navigate('/properties')}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<Save />}
-                    disabled={loading}
-                    sx={{
-                      backgroundColor: '#000',
-                      color: '#fff',
-                      '&:hover': { backgroundColor: '#333' }
-                    }}
-                  >
-                    {loading ? 'Saving...' : (isEdit ? 'Update Property' : 'Create Property')}
-                  </Button>
-                </Box>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Property Description"
+                  value={formData.propertyDescription}
+                  onChange={handleChange('propertyDescription')}
+                  error={!!errors.propertyDescription}
+                  helperText={errors.propertyDescription}
+                  required
+                  placeholder="Describe the property features, amenities, etc."
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Description />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              {/* Property Facility */}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  label="Property Facilities"
+                  value={formData.propertyFacility}
+                  onChange={handleChange('propertyFacility')}
+                  placeholder="e.g., Gym, Pool, Parking, Security, etc."
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Business />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
               </Grid>
             </Grid>
+
+            <Divider sx={{ my: 4 }} />
+
+            {/* Address Section */}
+            <AddressForm 
+              onAddressChange={handleAddressChange}
+              initialData={addressData}
+              errors={addressErrors}
+            />
+
+            {/* Submit Button */}
+            <Box mt={4} display="flex" justifyContent="space-between">
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/properties')}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={loading}
+                startIcon={<Save />}
+                sx={{ minWidth: 120 }}
+              >
+                {loading ? 'Saving...' : (isEdit ? 'Update Property' : 'Create Property')}
+              </Button>
+            </Box>
           </form>
         </CardContent>
       </Card>

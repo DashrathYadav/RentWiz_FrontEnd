@@ -97,7 +97,7 @@ const Tenants = () => {
       setError(null);
       
       const searchParams = {
-        pageNumber: currentPagination.pageNumber,
+        pageNumber: currentPagination.pageNumber + 1, // Convert 0-based to 1-based pagination
         pageSize: currentPagination.pageSize
       };
 
@@ -106,23 +106,49 @@ const Tenants = () => {
       }
 
       if (currentFilters.status) {
-        searchParams.status = currentFilters.status;
+        if (currentFilters.status === 'Active') {
+          searchParams.isActive = true;
+        } else if (currentFilters.status === 'Inactive' || currentFilters.status === 'Late Payment' || currentFilters.status === 'Evicted') {
+          searchParams.isActive = false;
+        }
       }
 
       if (currentFilters.roomAssigned === 'true') {
-        searchParams.hasRoom = true;
+        // Filter by tenants with room assignments - this might need backend support
+        // For now, we'll exclude this filter as the backend doesn't have this exact parameter
       } else if (currentFilters.roomAssigned === 'false') {
-        searchParams.hasRoom = false;
+        // Filter by tenants without room assignments
       }
 
       const response = await tenantAPI.search(searchParams);
       
-      if (response.data) {
-        setTenants(response.data.content || []);
+      if (response.data && response.data.data) {
+        // Handle the correct response structure from backend
+        const pagedData = response.data.data;
+        
+        // Map backend fields to frontend expected fields
+        const mappedTenants = (pagedData.data || []).map(tenant => ({
+          id: tenant.tenantId,
+          firstName: tenant.tenantName?.split(' ')[0] || '',
+          lastName: tenant.tenantName?.split(' ').slice(1).join(' ') || '',
+          email: tenant.tenantEmail,
+          phoneNumber: tenant.tenantMobile,
+          roomId: tenant.roomId,
+          leaseStartDate: tenant.boardingDate,
+          leaseEndDate: tenant.leavingDate,
+          isActive: tenant.isActive,
+          tenantRoomNo: tenant.tenantRoomNo,
+          deposited: tenant.deposited,
+          presentRentValue: tenant.presentRentValue,
+          // Keep original fields as well for compatibility
+          ...tenant
+        }));
+        
+        setTenants(mappedTenants);
         setPagination(prev => ({
           ...prev,
-          totalCount: response.data.totalElements || 0,
-          totalPages: response.data.totalPages || 0
+          totalCount: pagedData.totalRecords || 0,
+          totalPages: pagedData.totalPages || 0
         }));
       }
     } catch (error) {
@@ -136,17 +162,42 @@ const Tenants = () => {
 
   const fetchRooms = async () => {
     try {
-      const response = await roomAPI.getAll();
-      setRooms(response.data || []);
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const ownerId = user.id || 1;
+      
+      const response = await roomAPI.getByOwner(ownerId);
+      // Handle nested data structure and map backend fields to frontend expected fields
+      const roomsData = response.data?.data || response.data || [];
+      const mappedRooms = Array.isArray(roomsData) ? roomsData.map(room => ({
+        id: room.roomId,
+        roomNumber: room.roomNo,
+        propertyId: room.propertyId,
+        propertyName: room.propertyName,
+        // Keep original fields as well for compatibility
+        ...room
+      })) : [];
+      setRooms(mappedRooms);
     } catch (error) {
       console.error('Error fetching rooms:', error);
+      setRooms([]);
     }
   };
 
   const handlePageChange = (event, newPage) => {
     const newPagination = {
       ...pagination,
-      pageNumber: newPage - 1 // Material-UI uses 1-based indexing, API uses 0-based
+      pageNumber: newPage - 1 // Keep internal state 0-based for Material-UI compatibility
+    };
+    setPagination(newPagination);
+    fetchTenants(searchTerm, filters, newPagination);
+  };
+
+  const handlePageSizeChange = (event) => {
+    const newPageSize = parseInt(event.target.value);
+    const newPagination = { 
+      ...pagination, 
+      pageSize: newPageSize, 
+      pageNumber: 0 // Reset to first page when changing page size
     };
     setPagination(newPagination);
     fetchTenants(searchTerm, filters, newPagination);
@@ -185,9 +236,11 @@ const Tenants = () => {
   };
 
   const getTenantStatus = (tenant) => {
-    // This could be based on lease dates, payment status, etc.
-    // For now, let's assume active if they have a room assigned
-    return tenant.roomId ? 'Active' : 'Inactive';
+    // Use the isActive field from the backend
+    if (tenant.isActive === false) {
+      return 'Inactive';
+    }
+    return 'Active';
   };
 
   const getStatusColor = (status) => {
@@ -314,6 +367,30 @@ const Tenants = () => {
             </Grid>
           </Grid>
         )}
+      </Box>
+
+      {/* Results Summary and Page Size Control */}
+      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="body2" color="textSecondary">
+          Showing {tenants.length} of {pagination.totalCount} tenants
+          {(searchTerm || Object.values(filters).some(filter => filter)) && ' (filtered)'}
+        </Typography>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <Typography variant="body2">Rows per page:</Typography>
+          <FormControl size="small">
+            <Select
+              value={pagination.pageSize}
+              onChange={handlePageSizeChange}
+              disabled={loading}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={20}>20</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
       </Box>
 
       {/* Tenants Table */}
@@ -458,6 +535,30 @@ const Tenants = () => {
         </Table>
       </TableContainer>
 
+      {/* Results Summary and Page Size Control */}
+      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="body2" color="textSecondary">
+          Showing {tenants.length} of {pagination.totalCount} tenants
+          {(searchTerm || filters.status || filters.roomAssigned) && ' (filtered)'}
+        </Typography>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <Typography variant="body2">Rows per page:</Typography>
+          <FormControl size="small">
+            <Select
+              value={pagination.pageSize}
+              onChange={handlePageSizeChange}
+              disabled={loading}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={20}>20</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+      </Box>
+
       {/* Pagination */}
       {pagination.totalPages > 1 && (
         <Box display="flex" justifyContent="center" mt={3}>
@@ -482,7 +583,7 @@ const Tenants = () => {
               }}
             />
             <Typography variant="body2" color="text.secondary" textAlign="center">
-              Showing {tenants.length} of {pagination.totalCount} tenants
+              Showing {pagination.pageNumber * pagination.pageSize + 1}-{Math.min((pagination.pageNumber + 1) * pagination.pageSize, pagination.totalCount)} of {pagination.totalCount} records
             </Typography>
           </Stack>
         </Box>

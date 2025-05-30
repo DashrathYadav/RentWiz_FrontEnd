@@ -158,6 +158,21 @@ export const rentAPI = {
   getByTenant: (tenantId) =>
     api.get(`/${API_Route.getRentsByTenant}/${tenantId}`),
   getByOwner: (ownerId) => api.get(`/${API_Route.getRentsByOwner}/${ownerId}`),
+  // New search endpoint with filters and pagination
+  search: (searchParams = {}) => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const ownerId = user.id || 1;
+
+    // Default search parameters
+    const params = {
+      pageNumber: 1,
+      pageSize: 50,
+      ownerId: ownerId,
+      ...searchParams,
+    };
+
+    return api.post(`/${API_Route.searchRents}`, params);
+  },
   delete: (id) => api.delete(`/${API_Route.getRentById}/${id}`),
 };
 
@@ -166,6 +181,18 @@ export const addressAPI = {
   create: (addressData) => api.post(`/${API_Route.createAddress}`, addressData),
   getById: (id) => api.get(`/${API_Route.getAddressById}/${id}`),
   getAll: () => api.get(`/${API_Route.getAllAddresses}`),
+};
+
+// Lookups API (consolidated approach for all lookup data)
+export const lookupsAPI = {
+  getAll: () => api.get(`/${API_Route.getAllLookups}`),
+  getPropertyTypes: () => api.get(`/${API_Route.getPropertyTypes}`),
+  getCurrencies: () => api.get(`/${API_Route.getCurrencies}`),
+  getAvailabilityStatuses: () =>
+    api.get(`/${API_Route.getAvailabilityStatuses}`),
+  getRoomTypes: () => api.get(`/${API_Route.getRoomTypes}`),
+  getStates: () => api.get(`/${API_Route.getStates}`),
+  getCountries: () => api.get(`/${API_Route.getCountries}`),
 };
 
 export default api;

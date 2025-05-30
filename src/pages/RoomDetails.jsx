@@ -95,7 +95,11 @@ const RoomDetails = () => {
 
   const fetchRoomRents = async () => {
     try {
-      const response = await rentAPI.getAll();
+      // Get the current user to fetch rents by owner
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const ownerId = user.id || 1;
+      
+      const response = await rentAPI.getByOwner(ownerId);
       // Handle the Result<T> wrapper structure from backend
       const rentsData = response.data?.data || response.data || [];
       

@@ -24,7 +24,8 @@ import {
   Select,
   MenuItem,
   Grid,
-  Pagination
+  Pagination,
+  Stack
 } from '@mui/material';
 import {
   Add,
@@ -37,11 +38,12 @@ import {
   Clear
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { propertyAPI } from '../services/api';
+import { propertyAPI, lookupsAPI } from '../services/api';
 
 const Properties = () => {
   const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
+  const [propertyTypes, setPropertyTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
@@ -61,14 +63,12 @@ const Properties = () => {
   });
   const [pagination, setPagination] = useState({
     pageNumber: 1,
-    pageSize: 10,
+    pageSize: 5,
     totalCount: 0,
     totalPages: 0
   });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, property: null });
 
-  // Property types for filter dropdown
-  const propertyTypes = ['Apartment', 'House', 'Condo', 'Townhouse', 'Commercial'];
   const statusOptions = [
     { value: 1, label: 'Available' },
     { value: 2, label: 'Occupied' },
@@ -77,7 +77,31 @@ const Properties = () => {
 
   useEffect(() => {
     fetchProperties();
+    fetchPropertyTypes();
   }, [pagination.pageNumber, appliedSearchTerm, appliedFilters]);
+
+  const fetchPropertyTypes = async () => {
+    try {
+      const response = await lookupsAPI.getPropertyTypes();
+      // Handle the API response structure: { Success: true, Data: [...], Message: "..." }
+      const propertyTypesData = response.data?.Data || response.data?.data || [];
+      setPropertyTypes(Array.isArray(propertyTypesData) ? propertyTypesData : []);
+    } catch (error) {
+      console.error('Error fetching property types:', error);
+      // Fallback to hardcoded types if API fails
+      setPropertyTypes([
+        { id: 1, name: 'Apartment', value: 'Apartment' },
+        { id: 2, name: 'House', value: 'House' },
+        { id: 3, name: 'Studio', value: 'Studio' },
+        { id: 4, name: 'Condo', value: 'Condo' },
+        { id: 5, name: 'Townhouse', value: 'Townhouse' },
+        { id: 6, name: 'Commercial', value: 'Commercial' },
+        { id: 7, name: 'Office', value: 'Office' },
+        { id: 8, name: 'Warehouse', value: 'Warehouse' },
+        { id: 9, name: 'Other', value: 'Other' }
+      ]);
+    }
+  };
 
   const fetchProperties = async () => {
     try {
@@ -117,14 +141,15 @@ const Properties = () => {
       
       // Handle the paginated response structure
       const data = response.data?.data || response.data || {};
-      const items = data.items || data.data || [];
+      const items = data.data || []; // Items are in data.data array
       
       setProperties(Array.isArray(items) ? items : []);
-      setPagination(prev => ({
-        ...prev,
-        totalCount: data.totalCount || 0,
-        totalPages: data.totalPages || Math.ceil((data.totalCount || 0) / prev.pageSize)
-      }));
+      const newPagination = {
+        ...pagination,
+        totalCount: data.totalRecords || 0,
+        totalPages: data.totalPages || Math.ceil((data.totalRecords || 0) / pagination.pageSize)
+      };
+      setPagination(newPagination);
     } catch (error) {
       console.error('Error fetching properties:', error);
       setProperties([]);
@@ -158,6 +183,15 @@ const Properties = () => {
 
   const handlePageChange = (event, newPage) => {
     setPagination(prev => ({ ...prev, pageNumber: newPage }));
+  };
+
+  const handlePageSizeChange = (event) => {
+    const newPageSize = parseInt(event.target.value);
+    setPagination(prev => ({ 
+      ...prev, 
+      pageSize: newPageSize, 
+      pageNumber: 1 // Reset to first page when changing page size
+    }));
   };
 
   const clearFilters = () => {
@@ -264,7 +298,9 @@ const Properties = () => {
               >
                 <MenuItem value="">All Types</MenuItem>
                 {propertyTypes.map(type => (
-                  <MenuItem key={type} value={type}>{type}</MenuItem>
+                  <MenuItem key={type.id || type.Id} value={type.value || type.Value}>
+                    {type.name || type.Name}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -474,17 +510,59 @@ const Properties = () => {
         </Table>
       </TableContainer>
 
+      {/* Results Summary and Page Size Control */}
+      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="body2" color="textSecondary">
+          Showing {properties.length} of {pagination.totalCount} properties
+          {(appliedSearchTerm || Object.values(appliedFilters).some(filter => filter)) && ' (filtered)'}
+        </Typography>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <Typography variant="body2">Rows per page:</Typography>
+          <FormControl size="small">
+            <Select
+              value={pagination.pageSize}
+              onChange={handlePageSizeChange}
+              disabled={loading}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={20}>20</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+      </Box>
+
       {/* Pagination */}
       {pagination.totalPages > 1 && (
         <Box display="flex" justifyContent="center" mt={3}>
-          <Pagination
-            count={pagination.totalPages}
-            page={pagination.pageNumber}
-            onChange={handlePageChange}
-            color="primary"
-            showFirstButton
-            showLastButton
-          />
+          <Stack spacing={2}>
+            <Pagination
+              count={pagination.totalPages}
+              page={pagination.pageNumber}
+              onChange={handlePageChange}
+              color="primary"
+              size="large"
+              showFirstButton
+              showLastButton
+              sx={{
+                '& .MuiPaginationItem-root': {
+                  color: '#000',
+                  '&.Mui-selected': {
+                    backgroundColor: '#000',
+                    color: '#fff',
+                    '&:hover': {
+                      backgroundColor: '#333',
+                    },
+                  },
+                },
+              }}
+            />
+            <Typography variant="body2" color="textSecondary" textAlign="center">
+              Showing {(pagination.pageNumber - 1) * pagination.pageSize + 1}-{Math.min(pagination.pageNumber * pagination.pageSize, pagination.totalCount)} of {pagination.totalCount} records
+            </Typography>
+          </Stack>
         </Box>
       )}
 

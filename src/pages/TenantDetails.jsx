@@ -59,8 +59,36 @@ const TenantDetails = () => {
   const fetchTenantDetails = async () => {
     try {
       const response = await tenantAPI.getById(id);
-      setTenant(response.data);
+      
+      // Handle nested response structure - backend returns Result<T> wrapper
+      const tenantData = response.data?.data || response.data;
+      
+      // Map backend field names to frontend field names
+      if (tenantData) {
+        const mappedTenant = {
+          ...tenantData,
+          // Map backend fields to frontend expected fields
+          id: tenantData.tenantId,
+          firstName: tenantData.tenantName?.split(' ')[0] || tenantData.tenantName || '',
+          lastName: tenantData.tenantName?.split(' ').slice(1).join(' ') || '',
+          email: tenantData.tenantEmail,
+          mobile: tenantData.tenantMobile,
+          phone: tenantData.tenantMobile, // Use mobile as phone if no separate phone
+          roomNo: tenantData.tenantRoomNo,
+          isActive: tenantData.isActive,
+          boardingDate: tenantData.boardingDate,
+          leavingDate: tenantData.leavingDate,
+          note: tenantData.note,
+          // Keep original fields as well for compatibility
+          tenantName: tenantData.tenantName,
+          tenantEmail: tenantData.tenantEmail,
+          tenantMobile: tenantData.tenantMobile
+        };
+        
+        setTenant(mappedTenant);
+      }
     } catch (error) {
+      console.error('Error fetching tenant details:', error);
       setError('Failed to load tenant details');
     } finally {
       setLoading(false);
@@ -69,8 +97,8 @@ const TenantDetails = () => {
 
   const fetchTenantRents = async () => {
     try {
-      const response = await rentAPI.getAll();
-      const tenantRents = response.data.filter(rent => rent.tenantId === parseInt(id));
+      const response = await rentAPI.getByTenant(id);
+      const tenantRents = response.data.data || response.data || [];
       setRents(tenantRents.sort((a, b) => new Date(b.rentDate) - new Date(a.rentDate)));
     } catch (error) {
       console.error('Failed to load tenant rents:', error);
@@ -152,7 +180,7 @@ const TenantDetails = () => {
           <ArrowBack />
         </IconButton>
         <Typography variant="h4" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
-          {tenant.firstName} {tenant.lastName}
+          {tenant.firstName && tenant.lastName ? `${tenant.firstName} ${tenant.lastName}` : tenant.tenantName || 'Unknown Tenant'}
         </Typography>
         <IconButton onClick={handleMenuClick}>
           <MoreVert />
@@ -177,14 +205,15 @@ const TenantDetails = () => {
           <Paper sx={{ p: 3, mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
               <Avatar sx={{ width: 60, height: 60, mr: 2, bgcolor: 'primary.main' }}>
-                {tenant.firstName?.charAt(0)}{tenant.lastName?.charAt(0)}
+                {tenant.firstName?.charAt(0) || tenant.tenantName?.charAt(0) || 'T'}
+                {tenant.lastName?.charAt(0) || tenant.tenantName?.split(' ')[1]?.charAt(0) || ''}
               </Avatar>
               <Box>
                 <Typography variant="h5">
-                  {tenant.firstName} {tenant.lastName}
+                  {tenant.firstName && tenant.lastName ? `${tenant.firstName} ${tenant.lastName}` : tenant.tenantName || 'Unknown Tenant'}
                 </Typography>
                 <Typography color="text.secondary">
-                  Tenant ID: {tenant.id}
+                  Tenant ID: {tenant.id || tenant.tenantId}
                 </Typography>
               </Box>
             </Box>
@@ -195,7 +224,7 @@ const TenantDetails = () => {
                   Email Address
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.email}
+                  {tenant.email || tenant.tenantEmail || 'Not provided'}
                 </Typography>
               </Grid>
 
@@ -204,85 +233,62 @@ const TenantDetails = () => {
                   Phone Number
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.phoneNumber}
+                  {tenant.mobile || tenant.tenantMobile || tenant.phoneNumber || 'Not provided'}
                 </Typography>
               </Grid>
 
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Date of Birth
+                  Room Number
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.dateOfBirth ? 
-                    new Date(tenant.dateOfBirth).toLocaleDateString() : 'N/A'}
+                  {tenant.roomNo || tenant.tenantRoomNo || 'Not assigned'}
                 </Typography>
               </Grid>
 
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Occupation
+                  Status
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.occupation || 'N/A'}
+                  <Chip
+                    label={tenant.isActive ? 'Active' : 'Inactive'}
+                    color={tenant.isActive ? 'success' : 'default'}
+                    size="small"
+                  />
                 </Typography>
               </Grid>
 
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Lease Start Date
+                  Boarding Date
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.leaseStartDate ? 
-                    new Date(tenant.leaseStartDate).toLocaleDateString() : 'N/A'}
+                  {tenant.boardingDate ? 
+                    new Date(tenant.boardingDate).toLocaleDateString() : 'Not specified'}
                 </Typography>
               </Grid>
 
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Lease End Date
+                  Leaving Date
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.leaseEndDate ? 
-                    new Date(tenant.leaseEndDate).toLocaleDateString() : 'N/A'}
+                  {tenant.leavingDate ? 
+                    new Date(tenant.leavingDate).toLocaleDateString() : 'Not specified'}
                 </Typography>
               </Grid>
 
-              {tenant.emergencyContactName && (
-                <>
-                  <Grid item xs={12}>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      Emergency Contact
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Contact Name
-                    </Typography>
-                    <Typography variant="body1" sx={{ mb: 2 }}>
-                      {tenant.emergencyContactName}
-                    </Typography>
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Contact Phone
-                    </Typography>
-                    <Typography variant="body1" sx={{ mb: 2 }}>
-                      {tenant.emergencyContactPhone || 'N/A'}
-                    </Typography>
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <Typography variant="body2" color="text.secondary">
-                      Relationship
-                    </Typography>
-                    <Typography variant="body1" sx={{ mb: 2 }}>
-                      {tenant.emergencyContactRelationship || 'N/A'}
-                    </Typography>
-                  </Grid>
-                </>
+              {tenant.note && (
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Notes
+                  </Typography>
+                  <Typography variant="body1">
+                    {tenant.note}
+                  </Typography>
+                </Grid>
               )}
             </Grid>
           </Paper>

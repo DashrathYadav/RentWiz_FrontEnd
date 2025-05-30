@@ -26,7 +26,8 @@ import {
   Pagination,
   Grid,
   Card,
-  CardContent
+  CardContent,
+  Stack
 } from '@mui/material';
 import {
   Add,
@@ -529,17 +530,34 @@ const Rooms = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <Box display="flex" justifyContent="center" alignItems="center" mt={3}>
-          <Pagination
-            count={totalPages}
-            page={currentPage}
-            onChange={handlePageChange}
-            disabled={loading || searching}
-            color="primary"
-            size="large"
-            showFirstButton
-            showLastButton
-          />
+        <Box display="flex" justifyContent="center" mt={3}>
+          <Stack spacing={2}>
+            <Pagination
+              count={totalPages}
+              page={currentPage}
+              onChange={handlePageChange}
+              disabled={loading || searching}
+              color="primary"
+              size="large"
+              showFirstButton
+              showLastButton
+              sx={{
+                '& .MuiPaginationItem-root': {
+                  color: '#000',
+                  '&.Mui-selected': {
+                    backgroundColor: '#000',
+                    color: '#fff',
+                    '&:hover': {
+                      backgroundColor: '#333',
+                    },
+                  },
+                },
+              }}
+            />
+            <Typography variant="body2" color="textSecondary" textAlign="center">
+              Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalRooms)} of {totalRooms} records
+            </Typography>
+          </Stack>
         </Box>
       )}
 

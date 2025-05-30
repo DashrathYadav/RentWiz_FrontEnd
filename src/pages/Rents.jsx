@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -25,7 +25,9 @@ import {
   MenuItem,
   Card,
   CardContent,
-  Grid
+  Grid,
+  Pagination,
+  Stack
 } from '@mui/material';
 import {
   Add,
@@ -38,21 +40,43 @@ import {
   Payment,
   TrendingUp,
   AccountBalance,
-  CalendarMonth
+  CalendarMonth,
+  Clear
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { rentAPI, tenantAPI } from '../services/api';
+import { debounce } from 'lodash';
 
 const Rents = () => {
   const navigate = useNavigate();
+  
+  // Main state
   const [rents, setRents] = useState([]);
   const [filteredRents, setFilteredRents] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Search and filters state
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterMonth, setFilterMonth] = useState('');
+  const [filters, setFilters] = useState({
+    status: '',
+    month: ''
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    pageNumber: 0,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 0
+  });
+  
+  // Dialog state
   const [deleteDialog, setDeleteDialog] = useState({ open: false, rent: null });
+  
+  // Stats state
   const [stats, setStats] = useState({
     totalCollected: 0,
     pendingAmount: 0,
@@ -60,23 +84,105 @@ const Rents = () => {
     overdueCount: 0
   });
 
+  // Debounced search function
+  const debouncedFetch = useCallback(
+    debounce((search, currentFilters, currentPagination) => {
+      fetchRents(search, currentFilters, currentPagination);
+    }, 500),
+    []
+  );
+
   useEffect(() => {
-    fetchRents();
     fetchTenants();
+    fetchRents();
   }, []);
 
   useEffect(() => {
-    filterRents();
-    calculateStats();
-  }, [searchTerm, filterStatus, filterMonth, rents]);
+    // Reset pagination when search or filters change
+    debouncedFetch(searchTerm, filters, { ...pagination, pageNumber: 0 });
+    setPagination(prev => ({ ...prev, pageNumber: 0 }));
+  }, [searchTerm, filters, debouncedFetch]);
 
-  const fetchRents = async () => {
+  const fetchRents = async (search = searchTerm, currentFilters = filters, currentPagination = pagination) => {
     try {
       setLoading(true);
-      const response = await rentAPI.getAll();
-      setRents(response.data || []);
+      setError(null);
+      
+      const searchParams = {
+        pageNumber: currentPagination.pageNumber + 1, // Convert 0-based to 1-based pagination
+        pageSize: currentPagination.pageSize
+      };
+
+      // Add search term if present
+      if (search) {
+        searchParams.searchTerm = search;
+      }
+
+      // Add filter parameters
+      if (currentFilters.status) {
+        if (currentFilters.status === 'paid') {
+          // Add paid status filter - this might need to be mapped to backend field
+          searchParams.status = 1; // Assuming 1 = paid
+        } else if (currentFilters.status === 'pending') {
+          searchParams.status = 0; // Assuming 0 = pending
+        } else if (currentFilters.status === 'overdue') {
+          searchParams.status = 2; // Assuming 2 = overdue
+        }
+      }
+
+      if (currentFilters.month) {
+        // Add date range for the selected month
+        const year = new Date().getFullYear();
+        const monthIndex = parseInt(currentFilters.month);
+        const startDate = new Date(year, monthIndex, 1);
+        const endDate = new Date(year, monthIndex + 1, 0);
+        
+        searchParams.rentPeriodStartFrom = startDate.toISOString();
+        searchParams.rentPeriodStartTo = endDate.toISOString();
+      }
+
+      const response = await rentAPI.search(searchParams);
+      
+      if (response.data && response.data.data) {
+        // Handle the correct response structure from backend
+        const pagedData = response.data.data;
+        
+        // Map backend fields to frontend expected fields
+        const mappedRents = (pagedData.data || []).map(rent => ({
+          id: rent.rentId,
+          tenantId: rent.tenantId,
+          roomId: rent.roomId,
+          propertyId: rent.propertyId,
+          amount: rent.expectedRentValue || rent.receivedRentValue || 0,
+          expectedAmount: rent.expectedRentValue,
+          receivedAmount: rent.receivedRentValue,
+          rentDate: rent.rentPeriodStartDate,
+          dueDate: rent.rentPeriodEndDate,
+          isPaid: rent.status === 1, // Assuming 1 = paid
+          paymentStatus: rent.status === 1 ? 'Paid' : (rent.status === 2 ? 'Overdue' : 'Pending'),
+          note: rent.note,
+          currencyCode: rent.currencyCode,
+          // Keep original fields as well for compatibility
+          ...rent
+        }));
+        
+        setRents(mappedRents);
+        setFilteredRents(mappedRents); // Set filtered rents same as rents since server-side filtering
+        
+        setPagination(prev => ({
+          ...prev,
+          totalCount: pagedData.totalRecords || 0,
+          totalPages: pagedData.totalPages || 0
+        }));
+
+        // Calculate stats from current page data (for now)
+        calculateStats(mappedRents);
+      }
     } catch (error) {
       console.error('Error fetching rents:', error);
+      setError('Failed to load rents. Please try again.');
+      setRents([]);
+      setFilteredRents([]);
     } finally {
       setLoading(false);
     }
@@ -84,66 +190,81 @@ const Rents = () => {
 
   const fetchTenants = async () => {
     try {
-      const response = await tenantAPI.getAll();
-      setTenants(response.data || []);
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const ownerId = user.id || 1;
+      
+      const response = await tenantAPI.getByOwner(ownerId);
+      // Handle nested data structure and map backend fields to frontend expected fields
+      const tenantsData = response.data?.data || response.data || [];
+      
+      const mappedTenants = Array.isArray(tenantsData) ? tenantsData.map(tenant => ({
+        id: tenant.tenantId,
+        firstName: tenant.tenantName?.split(' ')[0] || '',
+        lastName: tenant.tenantName?.split(' ').slice(1).join(' ') || '',
+        email: tenant.tenantEmail,
+        phoneNumber: tenant.tenantMobile,
+        roomId: tenant.roomId,
+        // Keep original fields as well for compatibility
+        ...tenant
+      })) : [];
+      setTenants(mappedTenants);
     } catch (error) {
       console.error('Error fetching tenants:', error);
+      setTenants([]);
     }
   };
 
-  const filterRents = () => {
-    let filtered = rents;
-
-    // Text search
-    if (searchTerm) {
-      filtered = filtered.filter(rent => {
-        const tenant = getTenantName(rent.tenantId);
-        return tenant.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               rent.amount?.toString().includes(searchTerm);
-      });
-    }
-
-    // Status filter
-    if (filterStatus) {
-      if (filterStatus === 'paid') {
-        filtered = filtered.filter(rent => rent.isPaid);
-      } else if (filterStatus === 'pending') {
-        filtered = filtered.filter(rent => !rent.isPaid);
-      } else if (filterStatus === 'overdue') {
-        filtered = filtered.filter(rent => 
-          !rent.isPaid && new Date(rent.dueDate) < new Date()
-        );
-      }
-    }
-
-    // Month filter
-    if (filterMonth) {
-      filtered = filtered.filter(rent => {
-        const rentDate = new Date(rent.dueDate);
-        return rentDate.getMonth() === parseInt(filterMonth);
-      });
-    }
-
-    setFilteredRents(filtered);
+  const handlePageChange = (event, newPage) => {
+    const newPagination = {
+      ...pagination,
+      pageNumber: newPage - 1 // Keep internal state 0-based for Material-UI compatibility
+    };
+    setPagination(newPagination);
+    fetchRents(searchTerm, filters, newPagination);
   };
 
-  const calculateStats = () => {
+  const handlePageSizeChange = (event) => {
+    const newPageSize = parseInt(event.target.value);
+    const newPagination = { 
+      ...pagination, 
+      pageSize: newPageSize, 
+      pageNumber: 0 // Reset to first page when changing page size
+    };
+    setPagination(newPagination);
+    fetchRents(searchTerm, filters, newPagination);
+  };
+
+  const handleFilterChange = (filterType, value) => {
+    const newFilters = { ...filters, [filterType]: value };
+    setFilters(newFilters);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilters({
+      status: '',
+      month: ''
+    });
+  };
+
+  // Remove the old filterRents function since we're doing server-side filtering
+  const calculateStats = (rentsData = rents) => {
     const currentMonth = new Date().getMonth();
     const currentDate = new Date();
     
-    const totalCollected = rents
+    const totalCollected = rentsData
       .filter(rent => rent.isPaid)
-      .reduce((sum, rent) => sum + rent.amount, 0);
+      .reduce((sum, rent) => sum + (rent.amount || 0), 0);
     
-    const pendingAmount = rents
+    const pendingAmount = rentsData
       .filter(rent => !rent.isPaid)
-      .reduce((sum, rent) => sum + rent.amount, 0);
+      .reduce((sum, rent) => sum + (rent.amount || 0), 0);
     
-    const thisMonthTotal = rents
+    const thisMonthTotal = rentsData
       .filter(rent => new Date(rent.dueDate).getMonth() === currentMonth)
-      .reduce((sum, rent) => sum + rent.amount, 0);
+      .reduce((sum, rent) => sum + (rent.amount || 0), 0);
     
-    const overdueCount = rents
+    const overdueCount = rentsData
       .filter(rent => !rent.isPaid && new Date(rent.dueDate) < currentDate)
       .length;
 
@@ -180,12 +301,6 @@ const Rents = () => {
     if (rent.isPaid) return 'Paid';
     if (new Date(rent.dueDate) < new Date()) return 'Overdue';
     return 'Pending';
-  };
-
-  const clearFilters = () => {
-    setSearchTerm('');
-    setFilterStatus('');
-    setFilterMonth('');
   };
 
   const months = [
@@ -317,8 +432,8 @@ const Rents = () => {
           <FormControl sx={{ minWidth: 150 }}>
             <InputLabel>Status</InputLabel>
             <Select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              value={filters.status}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
               label="Status"
             >
               <MenuItem value="">All</MenuItem>
@@ -331,8 +446,8 @@ const Rents = () => {
           <FormControl sx={{ minWidth: 150 }}>
             <InputLabel>Month</InputLabel>
             <Select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
+              value={filters.month}
+              onChange={(e) => handleFilterChange('month', e.target.value)}
               label="Month"
             >
               <MenuItem value="">All Months</MenuItem>
@@ -344,15 +459,39 @@ const Rents = () => {
             </Select>
           </FormControl>
 
-          {(searchTerm || filterStatus || filterMonth) && (
+          {(searchTerm || filters.status || filters.month) && (
             <Button
               variant="outlined"
               onClick={clearFilters}
-              startIcon={<FilterList />}
+              startIcon={<Clear />}
             >
               Clear Filters
             </Button>
           )}
+        </Box>
+      </Box>
+
+      {/* Results Summary and Page Size Control */}
+      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="body2" color="textSecondary">
+          Showing {filteredRents.length} of {pagination.totalCount} rents
+          {(searchTerm || Object.values(filters).some(filter => filter)) && ' (filtered)'}
+        </Typography>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <Typography variant="body2">Rows per page:</Typography>
+          <FormControl size="small">
+            <Select
+              value={pagination.pageSize}
+              onChange={handlePageSizeChange}
+              disabled={loading}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={20}>20</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+            </Select>
+          </FormControl>
         </Box>
       </Box>
 
@@ -441,12 +580,12 @@ const Rents = () => {
                       No rent records found
                     </Typography>
                     <Typography variant="body2" color="textSecondary" mb={2}>
-                      {searchTerm || filterStatus || filterMonth
+                      {searchTerm || filters.status || filters.month !== ''
                         ? 'Try adjusting your search terms or filters'
                         : 'Get started by recording your first rent payment'
                       }
                     </Typography>
-                    {!searchTerm && !filterStatus && !filterMonth && (
+                    {!searchTerm && !filters.status && filters.month === '' && (
                       <Button
                         variant="contained"
                         startIcon={<Add />}
@@ -467,6 +606,62 @@ const Rents = () => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Results Summary and Page Size Control */}
+      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
+        <Typography variant="body2" color="textSecondary">
+          Showing {filteredRents.length} of {pagination.totalCount} rent records
+          {(searchTerm || filters.status || filters.month) && ' (filtered)'}
+        </Typography>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <Typography variant="body2">Rows per page:</Typography>
+          <FormControl size="small">
+            <Select
+              value={pagination.pageSize}
+              onChange={handlePageSizeChange}
+              disabled={loading}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={20}>20</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+      </Box>
+
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <Box display="flex" justifyContent="center" mt={3}>
+          <Stack spacing={2}>
+            <Pagination
+              count={pagination.totalPages}
+              page={pagination.pageNumber + 1} // Convert 0-based to 1-based for display
+              onChange={handlePageChange}
+              color="primary"
+              size="large"
+              showFirstButton
+              showLastButton
+              sx={{
+                '& .MuiPaginationItem-root': {
+                  color: '#000',
+                  '&.Mui-selected': {
+                    backgroundColor: '#000',
+                    color: '#fff',
+                    '&:hover': {
+                      backgroundColor: '#333',
+                    },
+                  },
+                },
+              }}
+            />
+            <Typography variant="body2" color="textSecondary" textAlign="center">
+              Showing {pagination.pageNumber * pagination.pageSize + 1}-{Math.min((pagination.pageNumber + 1) * pagination.pageSize, pagination.totalCount)} of {pagination.totalCount} records
+            </Typography>
+          </Stack>
+        </Box>
+      )}
 
       {/* Floating Action Button */}
       <Fab

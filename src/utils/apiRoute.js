@@ -40,9 +40,19 @@ export const API_Route = {
   getRentsByProperty: "rent/property",
   getRentsByTenant: "rent/tenant",
   getRentsByOwner: "rent/owner",
+  searchRents: "rent/search",
 
   // Address endpoints
   createAddress: "address/create",
   getAddressById: "address",
   getAllAddresses: "address",
+
+  // Lookups endpoints (consolidated approach)
+  getAllLookups: "lookups/all",
+  getPropertyTypes: "lookups/property-types",
+  getCurrencies: "lookups/currencies",
+  getAvailabilityStatuses: "lookups/availability-status",
+  getRoomTypes: "lookups/room-types",
+  getStates: "lookups/states",
+  getCountries: "lookups/countries",
 };
