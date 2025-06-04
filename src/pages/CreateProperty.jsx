@@ -72,37 +72,57 @@ const CreateProperty = () => {
 
   const fetchInitialData = async () => {
     try {
+      console.log('Fetching initial data for CreateProperty...');
+      
       const [propertyTypesResponse, currenciesResponse, statusesResponse] = await Promise.all([
         lookupsAPI.getPropertyTypes(),
         lookupsAPI.getCurrencies(),
         lookupsAPI.getAvailabilityStatuses()
       ]);
       
-      // Handle the API response structure: { Success: true, Data: [...], Message: "..." }
-      setPropertyTypes(propertyTypesResponse.data?.Data || propertyTypesResponse.data?.data || []);
-      setCurrencies(currenciesResponse.data?.Data || currenciesResponse.data?.data || []);
-      setAvailabilityStatuses(statusesResponse.data?.Data || statusesResponse.data?.data || []);
+      console.log('API Responses:', {
+        propertyTypes: propertyTypesResponse.data,
+        currencies: currenciesResponse.data,
+        statuses: statusesResponse.data
+      });
+      
+      // Handle the new API response structure: { status: true, responseCode: 0, message: "...", errors: null, data: {...} }
+      const propertyTypesData = lookupsAPI.extractData(propertyTypesResponse);
+      const currenciesData = lookupsAPI.extractData(currenciesResponse);
+      const statusesData = lookupsAPI.extractData(statusesResponse);
+      
+      console.log('Extracted data:', {
+        propertyTypesData,
+        currenciesData,
+        statusesData
+      });
+      
+      setPropertyTypes(propertyTypesData);
+      setCurrencies(currenciesData);
+      setAvailabilityStatuses(statusesData);
       
       // Set default owner from user context
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       if (user.id) {
         setFormData(prev => ({ ...prev, ownerId: user.id }));
       }
+      
+      console.log('Initial data fetch completed successfully');
     } catch (error) {
       console.error('Error fetching initial data:', error);
-      // Set fallback values
+      // Set fallback values - using string IDs to match API format
       setPropertyTypes([
-        { id: 1, name: 'Apartment', value: 'Apartment' },
-        { id: 2, name: 'House', value: 'House' },
-        { id: 3, name: 'Studio', value: 'Studio' },
-        { id: 4, name: 'Condo', value: 'Condo' },
-        { id: 5, name: 'Other', value: 'Other' }
+        { id: '1', name: 'Apartment', value: 'Apartment' },
+        { id: '2', name: 'House', value: 'House' },
+        { id: '3', name: 'Studio', value: 'Studio' },
+        { id: '4', name: 'Condo', value: 'Condo' },
+        { id: '5', name: 'Other', value: 'Other' }
       ]);
-      setCurrencies([{ id: 8, name: 'INR', value: 'INR' }]);
+      setCurrencies([{ id: '8', name: 'INR', value: 'INR' }]);
       setAvailabilityStatuses([
-        { id: 1, name: 'Available', value: 'Available' },
-        { id: 2, name: 'Rented', value: 'Rented' },
-        { id: 3, name: 'UnderMaintenance', value: 'UnderMaintenance' }
+        { id: '1', name: 'Available', value: 'Available' },
+        { id: '2', name: 'Rented', value: 'Rented' },
+        { id: '3', name: 'UnderMaintenance', value: 'UnderMaintenance' }
       ]);
     }
   };

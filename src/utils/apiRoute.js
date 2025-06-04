@@ -50,6 +50,7 @@ export const API_Route = {
   // Lookups endpoints (consolidated approach)
   getAllLookups: "lookups/all",
   getPropertyTypes: "lookups/property-types",
+  getProperties: "lookups/properties",
   getCurrencies: "lookups/currencies",
   getAvailabilityStatuses: "lookups/availability-status",
   getRoomTypes: "lookups/room-types",

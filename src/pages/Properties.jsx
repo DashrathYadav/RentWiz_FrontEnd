@@ -83,18 +83,18 @@ const Properties = () => {
   const fetchPropertyTypes = async () => {
     try {
       const response = await lookupsAPI.getPropertyTypes();
-      // Handle the API response structure: { Success: true, Data: [...], Message: "..." }
-      const propertyTypesData = response.data?.Data || response.data?.data || [];
+      // Handle the new API response structure: { status: true, responseCode: 0, message: "...", errors: null, data: {...} }
+      const propertyTypesData = lookupsAPI.extractData(response);
       setPropertyTypes(Array.isArray(propertyTypesData) ? propertyTypesData : []);
     } catch (error) {
       console.error('Error fetching property types:', error);
-      // Fallback to hardcoded types if API fails
+      // Fallback to hardcoded types if API fails - using string IDs to match API format
       setPropertyTypes([
-        { id: 1, name: 'Apartment', value: 'Apartment' },
-        { id: 2, name: 'House', value: 'House' },
-        { id: 3, name: 'Studio', value: 'Studio' },
-        { id: 4, name: 'Condo', value: 'Condo' },
-        { id: 5, name: 'Townhouse', value: 'Townhouse' },
+        { id: '1', name: 'Apartment', value: 'Apartment' },
+        { id: '2', name: 'House', value: 'House' },
+        { id: '3', name: 'Studio', value: 'Studio' },
+        { id: '4', name: 'Condo', value: 'Condo' },
+        { id: '5', name: 'Townhouse', value: 'Townhouse' },
         { id: 6, name: 'Commercial', value: 'Commercial' },
         { id: 7, name: 'Office', value: 'Office' },
         { id: 8, name: 'Warehouse', value: 'Warehouse' },

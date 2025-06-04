@@ -63,22 +63,30 @@ const TenantDetails = () => {
       // Handle nested response structure - backend returns Result<T> wrapper
       const tenantData = response.data?.data || response.data;
       
-      // Map backend field names to frontend field names
+      // Map backend field names to match CreateTenantDto structure
       if (tenantData) {
         const mappedTenant = {
           ...tenantData,
-          // Map backend fields to frontend expected fields
+          // Use DTO-compliant field names
           id: tenantData.tenantId,
+          tenantName: tenantData.tenantName,
+          tenantEmail: tenantData.tenantEmail,
+          tenantMobile: tenantData.tenantMobile,
+          tenantAdharId: tenantData.tenantAdharId,
+          tenantRoomNo: tenantData.tenantRoomNo,
+          isActive: tenantData.isActive,
+          boardingDate: tenantData.boardingDate,
+          note: tenantData.note,
+          deposited: tenantData.deposited,
+          presentRentValue: tenantData.presentRentValue,
+          lockInPeriod: tenantData.lockInPeriod,
+          // Keep legacy fields for backward compatibility
           firstName: tenantData.tenantName?.split(' ')[0] || tenantData.tenantName || '',
           lastName: tenantData.tenantName?.split(' ').slice(1).join(' ') || '',
           email: tenantData.tenantEmail,
           mobile: tenantData.tenantMobile,
-          phone: tenantData.tenantMobile, // Use mobile as phone if no separate phone
+          phone: tenantData.tenantMobile,
           roomNo: tenantData.tenantRoomNo,
-          isActive: tenantData.isActive,
-          boardingDate: tenantData.boardingDate,
-          leavingDate: tenantData.leavingDate,
-          note: tenantData.note,
           // Keep original fields as well for compatibility
           tenantName: tenantData.tenantName,
           tenantEmail: tenantData.tenantEmail,
@@ -180,7 +188,7 @@ const TenantDetails = () => {
           <ArrowBack />
         </IconButton>
         <Typography variant="h4" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
-          {tenant.firstName && tenant.lastName ? `${tenant.firstName} ${tenant.lastName}` : tenant.tenantName || 'Unknown Tenant'}
+          {tenant.tenantName || 'Unknown Tenant'}
         </Typography>
         <IconButton onClick={handleMenuClick}>
           <MoreVert />
@@ -205,12 +213,12 @@ const TenantDetails = () => {
           <Paper sx={{ p: 3, mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
               <Avatar sx={{ width: 60, height: 60, mr: 2, bgcolor: 'primary.main' }}>
-                {tenant.firstName?.charAt(0) || tenant.tenantName?.charAt(0) || 'T'}
-                {tenant.lastName?.charAt(0) || tenant.tenantName?.split(' ')[1]?.charAt(0) || ''}
+                {tenant.tenantName?.charAt(0) || 'T'}
+                {tenant.tenantName?.split(' ')[1]?.charAt(0) || ''}
               </Avatar>
               <Box>
                 <Typography variant="h5">
-                  {tenant.firstName && tenant.lastName ? `${tenant.firstName} ${tenant.lastName}` : tenant.tenantName || 'Unknown Tenant'}
+                  {tenant.tenantName || 'Unknown Tenant'}
                 </Typography>
                 <Typography color="text.secondary">
                   Tenant ID: {tenant.id || tenant.tenantId}
@@ -224,25 +232,36 @@ const TenantDetails = () => {
                   Email Address
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.email || tenant.tenantEmail || 'Not provided'}
+                  {tenant.tenantEmail || 'Not provided'}
                 </Typography>
               </Grid>
 
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Phone Number
+                  Mobile Number
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.mobile || tenant.tenantMobile || tenant.phoneNumber || 'Not provided'}
+                  {tenant.tenantMobile || 'Not provided'}
                 </Typography>
               </Grid>
+
+              {tenant.tenantAdharId && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Aadhaar ID
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    ****-****-{tenant.tenantAdharId.slice(-4)}
+                  </Typography>
+                </Grid>
+              )}
 
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
                   Room Number
                 </Typography>
                 <Typography variant="body1" sx={{ mb: 2 }}>
-                  {tenant.roomNo || tenant.tenantRoomNo || 'Not assigned'}
+                  {tenant.tenantRoomNo || 'Not assigned'}
                 </Typography>
               </Grid>
 
@@ -287,6 +306,39 @@ const TenantDetails = () => {
                   </Typography>
                   <Typography variant="body1">
                     {tenant.note}
+                  </Typography>
+                </Grid>
+              )}
+
+              {tenant.deposited && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Deposit Amount
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2, color: 'success.main', fontWeight: 'bold' }}>
+                    ₹{tenant.deposited.toLocaleString()}
+                  </Typography>
+                </Grid>
+              )}
+
+              {tenant.presentRentValue && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Current Rent
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    ₹{tenant.presentRentValue.toLocaleString()}
+                  </Typography>
+                </Grid>
+              )}
+
+              {tenant.lockInPeriod && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Lock-in Period
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    {tenant.lockInPeriod}
                   </Typography>
                 </Grid>
               )}

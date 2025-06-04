@@ -285,15 +285,15 @@ const RentDetails = () => {
                             Tenant
                           </Typography>
                           <Typography color="text.secondary">
-                            {rent.tenant.firstName} {rent.tenant.lastName}
+                            {rent.tenant.tenantName || `${rent.tenant.firstName || ''} ${rent.tenant.lastName || ''}`.trim() || 'Unknown Tenant'}
                           </Typography>
                         </Box>
                       </Box>
                       <Typography variant="body2" color="text.secondary">
-                        Email: {rent.tenant.email}
+                        Email: {rent.tenant.tenantEmail || rent.tenant.email || 'N/A'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Phone: {rent.tenant.phoneNumber}
+                        Phone: {rent.tenant.tenantMobile || rent.tenant.phoneNumber || 'N/A'}
                       </Typography>
                       <Button 
                         size="small" 

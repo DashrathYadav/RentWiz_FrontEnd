@@ -187,12 +187,70 @@ export const addressAPI = {
 export const lookupsAPI = {
   getAll: () => api.get(`/${API_Route.getAllLookups}`),
   getPropertyTypes: () => api.get(`/${API_Route.getPropertyTypes}`),
+  getProperties: (ownerId) =>
+    api.get(
+      `/${API_Route.getProperties}${ownerId ? `?ownerId=${ownerId}` : ""}`
+    ),
   getCurrencies: () => api.get(`/${API_Route.getCurrencies}`),
   getAvailabilityStatuses: () =>
     api.get(`/${API_Route.getAvailabilityStatuses}`),
   getRoomTypes: () => api.get(`/${API_Route.getRoomTypes}`),
   getStates: () => api.get(`/${API_Route.getStates}`),
   getCountries: () => api.get(`/${API_Route.getCountries}`),
+
+  // Helper function to extract data from new API response format
+  // New format: { status: true, responseCode: 0, message: "...", errors: null, data: { data: [...], totalCount: N, ... } }
+  extractData: (response) => {
+    try {
+      if (response?.data?.status && response.data.responseCode === 0) {
+        // The actual array data is nested in response.data.data.data
+        const rawData = response.data.data?.data || [];
+
+        // Normalize the data structure to ensure frontend compatibility
+        const extractedData = rawData.map((item) => ({
+          id: item.id, // Keep ID as string to match API format and avoid type conversion issues
+          name: item.value || item.name || item.Name || "", // Map value to name for display
+          value: item.value || item.name || item.Name || "", // Keep value for consistency
+          description: item.description || item.Description || "",
+        }));
+
+        console.log("extractData result:", extractedData);
+        return extractedData;
+      }
+
+      // Fallback: try to extract data from old format or direct data
+      const fallbackData = response?.data?.Data || response?.data?.data || [];
+      if (Array.isArray(fallbackData)) {
+        console.warn("Using fallback data extraction for API response");
+        // Normalize fallback data as well
+        const fallbackResult = fallbackData.map((item) => ({
+          id: item.id || item.Id, // Keep original ID format
+          name: item.name || item.Name || item.value || "",
+          value: item.value || item.name || item.Name || "",
+          description: item.description || item.Description || "",
+        }));
+
+        console.log("fallback extractData result:", fallbackResult);
+        return fallbackResult;
+      }
+
+      console.error("API Response Format:", response?.data);
+      return [];
+    } catch (error) {
+      console.error("Error extracting data from API response:", error);
+      return [];
+    }
+  },
+
+  // Helper function to check if API response is successful
+  isSuccess: (response) => {
+    return response?.data?.status && response.data.responseCode === 0;
+  },
+
+  // Helper function to get error message from API response
+  getErrorMessage: (response) => {
+    return response?.data?.message || "An error occurred";
+  },
 };
 
 export default api;

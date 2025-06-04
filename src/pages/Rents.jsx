@@ -288,7 +288,7 @@ const Rents = () => {
 
   const getTenantName = (tenantId) => {
     const tenant = tenants.find(t => t.id === tenantId);
-    return tenant ? `${tenant.firstName} ${tenant.lastName}` : 'Unknown Tenant';
+    return tenant ? (tenant.tenantName || `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() || 'Unknown Tenant') : 'Unknown Tenant';
   };
 
   const getPaymentStatusColor = (rent) => {
@@ -606,30 +606,6 @@ const Rents = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
-      {/* Results Summary and Page Size Control */}
-      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
-        <Typography variant="body2" color="textSecondary">
-          Showing {filteredRents.length} of {pagination.totalCount} rent records
-          {(searchTerm || filters.status || filters.month) && ' (filtered)'}
-        </Typography>
-        
-        <Box display="flex" alignItems="center" gap={2}>
-          <Typography variant="body2">Rows per page:</Typography>
-          <FormControl size="small">
-            <Select
-              value={pagination.pageSize}
-              onChange={handlePageSizeChange}
-              disabled={loading}
-            >
-              <MenuItem value={5}>5</MenuItem>
-              <MenuItem value={10}>10</MenuItem>
-              <MenuItem value={20}>20</MenuItem>
-              <MenuItem value={50}>50</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-      </Box>
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (

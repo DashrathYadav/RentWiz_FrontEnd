@@ -49,22 +49,19 @@ const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
         console.log('States response:', statesResponse);
         console.log('Countries response:', countriesResponse);
         
-        // Handle different response formats
-        const statesData = statesResponse.data?.Data || statesResponse.data?.data || statesResponse.data || [];
-        const countriesData = countriesResponse.data?.Data || countriesResponse.data?.data || countriesResponse.data || [];
-        
-        setStates(statesData);
-        setCountries(countriesData);
+        // Handle the new API response structure: { status: true, responseCode: 0, message: "...", errors: null, data: {...} }
+        setStates(lookupsAPI.extractData(statesResponse));
+        setCountries(lookupsAPI.extractData(countriesResponse));
       } catch (error) {
         console.error('Error fetching lookup data:', error);
-        // Set fallback data
+        // Set fallback data - using string IDs to match API format
         setStates([
-          { id: 1, name: 'Maharashtra' },
-          { id: 2, name: 'Delhi' },
-          { id: 3, name: 'Karnataka' }
+          { id: '1', name: 'Maharashtra' },
+          { id: '2', name: 'Delhi' },
+          { id: '3', name: 'Karnataka' }
         ]);
         setCountries([
-          { id: 1, name: 'India' }
+          { id: '1', name: 'India' }
         ]);
       } finally {
         setLoading(false);

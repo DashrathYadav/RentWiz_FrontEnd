@@ -126,20 +126,21 @@ const Tenants = () => {
         // Handle the correct response structure from backend
         const pagedData = response.data.data;
         
-        // Map backend fields to frontend expected fields
+        // Map backend fields to match CreateTenantDto structure
         const mappedTenants = (pagedData.data || []).map(tenant => ({
           id: tenant.tenantId,
-          firstName: tenant.tenantName?.split(' ')[0] || '',
-          lastName: tenant.tenantName?.split(' ').slice(1).join(' ') || '',
-          email: tenant.tenantEmail,
-          phoneNumber: tenant.tenantMobile,
+          tenantName: tenant.tenantName,
+          tenantEmail: tenant.tenantEmail,
+          tenantMobile: tenant.tenantMobile,
+          tenantAdharId: tenant.tenantAdharId,
           roomId: tenant.roomId,
-          leaseStartDate: tenant.boardingDate,
-          leaseEndDate: tenant.leavingDate,
-          isActive: tenant.isActive,
           tenantRoomNo: tenant.tenantRoomNo,
+          boardingDate: tenant.boardingDate,
+          isActive: tenant.isActive,
           deposited: tenant.deposited,
           presentRentValue: tenant.presentRentValue,
+          lockInPeriod: tenant.lockInPeriod,
+          propertyId: tenant.propertyId,
           // Keep original fields as well for compatibility
           ...tenant
         }));
@@ -231,8 +232,13 @@ const Tenants = () => {
     return room ? `Room ${room.roomNumber}` : 'No Room Assigned';
   };
 
-  const getInitials = (firstName, lastName) => {
-    return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
+  const getInitials = (tenantName) => {
+    if (!tenantName) return 'T';
+    const nameParts = tenantName.split(' ');
+    if (nameParts.length >= 2) {
+      return `${nameParts[0].charAt(0)}${nameParts[1].charAt(0)}`.toUpperCase();
+    }
+    return nameParts[0].charAt(0).toUpperCase();
   };
 
   const getTenantStatus = (tenant) => {
@@ -296,7 +302,7 @@ const Tenants = () => {
         <Box mb={2}>
           <TextField
             fullWidth
-            placeholder="Search tenants by name, email, or phone number..."
+            placeholder="Search tenants by name, email, mobile, or Aadhaar ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
@@ -401,7 +407,8 @@ const Tenants = () => {
               <TableCell>Tenant</TableCell>
               <TableCell>Contact Info</TableCell>
               <TableCell>Room Assignment</TableCell>
-              <TableCell>Lease Dates</TableCell>
+              <TableCell>Financial Info</TableCell>
+              <TableCell>Boarding Date</TableCell>
               <TableCell>Status</TableCell>
               <TableCell align="center">Actions</TableCell>
             </TableRow>
@@ -413,15 +420,20 @@ const Tenants = () => {
                   <TableCell>
                     <Box display="flex" alignItems="center">
                       <Avatar sx={{ mr: 2, bgcolor: '#000', width: 40, height: 40 }}>
-                        {getInitials(tenant.firstName, tenant.lastName)}
+                        {getInitials(tenant.tenantName)}
                       </Avatar>
                       <Box>
                         <Typography variant="subtitle2" fontWeight="bold">
-                          {tenant.firstName} {tenant.lastName}
+                          {tenant.tenantName || 'Unknown Tenant'}
                         </Typography>
                         <Typography variant="caption" color="textSecondary">
                           ID: {tenant.id}
                         </Typography>
+                        {tenant.tenantAdharId && (
+                          <Typography variant="caption" color="textSecondary" display="block">
+                            Aadhaar: ****{tenant.tenantAdharId.slice(-4)}
+                          </Typography>
+                        )}
                       </Box>
                     </Box>
                   </TableCell>
@@ -430,13 +442,13 @@ const Tenants = () => {
                       <Box display="flex" alignItems="center" mb={0.5}>
                         <Email sx={{ mr: 1, color: '#666', fontSize: 16 }} />
                         <Typography variant="body2">
-                          {tenant.email || 'No email'}
+                          {tenant.tenantEmail || 'No email'}
                         </Typography>
                       </Box>
                       <Box display="flex" alignItems="center">
                         <Phone sx={{ mr: 1, color: '#666', fontSize: 16 }} />
                         <Typography variant="body2">
-                          {tenant.phoneNumber || 'No phone'}
+                          {tenant.tenantMobile || 'No phone'}
                         </Typography>
                       </Box>
                     </Box>
@@ -444,24 +456,47 @@ const Tenants = () => {
                   <TableCell>
                     <Box display="flex" alignItems="center">
                       <Home sx={{ mr: 1, color: '#666', fontSize: 16 }} />
-                      {getRoomInfo(tenant.roomId)}
+                      <Box>
+                        <Typography variant="body2">
+                          {getRoomInfo(tenant.roomId)}
+                        </Typography>
+                        {tenant.tenantRoomNo && (
+                          <Typography variant="caption" color="textSecondary">
+                            Room No: {tenant.tenantRoomNo}
+                          </Typography>
+                        )}
+                      </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
                     <Box>
-                      {tenant.leaseStartDate && (
-                        <Typography variant="body2">
-                          Start: {new Date(tenant.leaseStartDate).toLocaleDateString()}
+                      {tenant.deposited && (
+                        <Typography variant="body2" fontWeight="bold" color="success.main">
+                          Deposit: ₹{tenant.deposited.toLocaleString()}
                         </Typography>
                       )}
-                      {tenant.leaseEndDate && (
+                      {tenant.presentRentValue && (
                         <Typography variant="body2">
-                          End: {new Date(tenant.leaseEndDate).toLocaleDateString()}
+                          Rent: ₹{tenant.presentRentValue.toLocaleString()}
                         </Typography>
                       )}
-                      {!tenant.leaseStartDate && !tenant.leaseEndDate && (
+                      {tenant.lockInPeriod && (
+                        <Typography variant="caption" color="textSecondary">
+                          Lock-in: {tenant.lockInPeriod}
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Box>
+                      {tenant.boardingDate && (
+                        <Typography variant="body2">
+                          {new Date(tenant.boardingDate).toLocaleDateString()}
+                        </Typography>
+                      )}
+                      {!tenant.boardingDate && (
                         <Typography variant="body2" color="textSecondary">
-                          No lease dates
+                          Not specified
                         </Typography>
                       )}
                     </Box>
@@ -501,7 +536,7 @@ const Tenants = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={7} align="center">
                   <Box py={4}>
                     <People sx={{ fontSize: 48, color: '#ccc', mb: 2 }} />
                     <Typography variant="h6" color="textSecondary" gutterBottom>
@@ -534,30 +569,6 @@ const Tenants = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
-      {/* Results Summary and Page Size Control */}
-      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
-        <Typography variant="body2" color="textSecondary">
-          Showing {tenants.length} of {pagination.totalCount} tenants
-          {(searchTerm || filters.status || filters.roomAssigned) && ' (filtered)'}
-        </Typography>
-        
-        <Box display="flex" alignItems="center" gap={2}>
-          <Typography variant="body2">Rows per page:</Typography>
-          <FormControl size="small">
-            <Select
-              value={pagination.pageSize}
-              onChange={handlePageSizeChange}
-              disabled={loading}
-            >
-              <MenuItem value={5}>5</MenuItem>
-              <MenuItem value={10}>10</MenuItem>
-              <MenuItem value={20}>20</MenuItem>
-              <MenuItem value={50}>50</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-      </Box>
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
