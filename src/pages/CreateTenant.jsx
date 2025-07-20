@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -25,14 +25,12 @@ import {
   Home,
   CalendarMonth,
   AttachMoney,
-  ContactPhone,
   CreditCard,
-  LocationOn,
-  Description,
   Note
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { tenantAPI, roomAPI, propertyAPI, lookupsAPI } from '../services/api';
+import AddressForm from '../components/AddressForm';
 
 const CreateTenant = () => {
   const navigate = useNavigate();
@@ -46,25 +44,6 @@ const CreateTenant = () => {
     tenantAdharId: '',
     tenantProfilePic: '',
     tenantDocument: '',
-    permanentAddress: {
-      street: '',
-      landMark: '',
-      area: '',
-      city: '',
-      pincode: '',
-      stateId: '',
-      countryId: ''
-    },
-    currentAddress: {
-      street: '',
-      landMark: '',
-      area: '',
-      city: '',
-      pincode: '',
-      stateId: '',
-      countryId: ''
-    },
-    tenantRoomNo: '',
     lockInPeriod: '',
     note: '',
     deposited: '',
@@ -76,14 +55,33 @@ const CreateTenant = () => {
     propertyId: '',
     roomId: ''
   });
-  
+
+  const [permanentAddressData, setPermanentAddressData] = useState({
+    street: '',
+    landMark: '',
+    area: '',
+    city: '',
+    pincode: '',
+    stateId: '',
+    countryId: ''
+  });
+
+  const [currentAddressData, setCurrentAddressData] = useState({
+    street: '',
+    landMark: '',
+    area: '',
+    city: '',
+    pincode: '',
+    stateId: '',
+    countryId: ''
+  });
+
   const [properties, setProperties] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [currencies, setCurrencies] = useState([]);
-  const [states, setStates] = useState([]);
-  const [countries, setCountries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [addressErrors, setAddressErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [sameAddress, setSameAddress] = useState(false);
 
@@ -105,68 +103,46 @@ const CreateTenant = () => {
   }, [id, isEdit]);
 
   // Fetch rooms when property changes
+  const prevPropertyId = useRef(formData.propertyId);
   useEffect(() => {
     if (formData.propertyId) {
+      // Only clear selected room if property actually changed (not on initial load or room selection)
+      if (prevPropertyId.current && prevPropertyId.current !== formData.propertyId) {
+        setFormData(prev => ({
+          ...prev,
+          roomId: ''
+        }));
+      }
+      prevPropertyId.current = formData.propertyId;
       fetchRoomsByProperty(formData.propertyId);
+    } else {
+      // Clear rooms if no property selected
+      setRooms([]);
+      setFormData(prev => ({
+        ...prev,
+        roomId: ''
+      }));
+      prevPropertyId.current = formData.propertyId;
     }
   }, [formData.propertyId]);
 
   const fetchLookupData = async () => {
     try {
-      const [currenciesRes, statesRes, countriesRes] = await Promise.all([
-        lookupsAPI.getCurrencies(),
-        lookupsAPI.getStates(),
-        lookupsAPI.getCountries()
-      ]);
-
-      const extractedCurrencies = lookupsAPI.extractData(currenciesRes);
-      const extractedStates = lookupsAPI.extractData(statesRes);
-      const extractedCountries = lookupsAPI.extractData(countriesRes);
+      const currenciesResponse = await lookupsAPI.getCurrencies();
+      const extractedCurrencies = lookupsAPI.extractData(currenciesResponse);
+      setCurrencies(extractedCurrencies || []);
       
-      setCurrencies(extractedCurrencies);
-      setStates(extractedStates);
-      setCountries(extractedCountries);
-      
-      // Set default values
-      if (!isEdit && extractedCurrencies.length > 0 && extractedStates.length > 0 && extractedCountries.length > 0) {
+      // Set default currency if not editing
+      if (!isEdit && extractedCurrencies && extractedCurrencies.length > 0) {
+        const defaultCurrency = extractedCurrencies.find(c => c.value === 'INR') || extractedCurrencies[0];
         setFormData(prev => ({
           ...prev,
-          currencyCode: extractedCurrencies.find(c => c.value === 'INR')?.id || extractedCurrencies[0]?.id || '8',
-          permanentAddress: {
-            ...prev.permanentAddress,
-            stateId: extractedStates[0]?.id || '1',
-            countryId: extractedCountries[0]?.id || '1'
-          },
-          currentAddress: {
-            ...prev.currentAddress,
-            stateId: extractedStates[0]?.id || '1',
-            countryId: extractedCountries[0]?.id || '1'
-          }
+          currencyCode: defaultCurrency.id || defaultCurrency.value || ''
         }));
       }
     } catch (error) {
       console.error('Error fetching lookup data:', error);
-      // Set fallback data
-      setCurrencies([{ id: '8', name: 'INR', value: 'INR' }]);
-      setStates([{ id: '1', name: 'Maharashtra', value: 'Maharashtra' }]);
-      setCountries([{ id: '1', name: 'India', value: 'India' }]);
-      
-      if (!isEdit) {
-        setFormData(prev => ({
-          ...prev,
-          currencyCode: '8',
-          permanentAddress: {
-            ...prev.permanentAddress,
-            stateId: '1',
-            countryId: '1'
-          },
-          currentAddress: {
-            ...prev.currentAddress,
-            stateId: '1',
-            countryId: '1'
-          }
-        }));
-      }
+      setCurrencies([]);
     }
   };
 
@@ -177,12 +153,7 @@ const CreateTenant = () => {
       
       const response = await lookupsAPI.getProperties(ownerId);
       const extractedProperties = lookupsAPI.extractData(response);
-      
-      if (extractedProperties && extractedProperties.length > 0) {
-        setProperties(extractedProperties);
-      } else {
-        setProperties([]);
-      }
+      setProperties(extractedProperties || []);
     } catch (error) {
       console.error('Error fetching properties:', error);
       setProperties([]);
@@ -191,16 +162,48 @@ const CreateTenant = () => {
 
   const fetchRoomsByProperty = async (propertyId) => {
     try {
-      const response = await roomAPI.getAll();
-      // Filter rooms by property and show available rooms only (or current room if editing)
-      const propertyRooms = response.data?.filter(room => 
-        room.propertyId === parseInt(propertyId) && 
-        (!room.isOccupied || (isEdit && room.id === parseInt(formData.roomId)))
-      ) || [];
-      setRooms(propertyRooms);
+      console.log('Fetching rooms for property ID:', propertyId);
+      setRooms([]); // Clear existing rooms first
+      
+      const response = await roomAPI.getByProperty(propertyId);
+      console.log('Rooms API response:', response);
+      
+      // Handle different response structures
+      let roomsData = [];
+      if (response) {
+        if (Array.isArray(response)) {
+          roomsData = response;
+        } else if (response.data) {
+          if (Array.isArray(response.data)) {
+            roomsData = response.data;
+          } else if (response.data.data && Array.isArray(response.data.data)) {
+            roomsData = response.data.data;
+          } else if (response.data.result && Array.isArray(response.data.result)) {
+            roomsData = response.data.result;
+          }
+        }
+      }
+      
+      // Ensure each room has proper id and structure
+      const processedRooms = roomsData.map(room => ({
+        id: room.id || room.roomId,
+        roomNo: room.roomNo || room.roomNumber || 'N/A',
+        roomType: room.roomType || 'Standard',
+        ...room // keep original data
+      })).filter(room => room.id); // Only keep rooms with valid IDs
+      
+      console.log('Processed rooms data:', processedRooms);
+      setRooms(processedRooms);
+      
     } catch (error) {
       console.error('Error fetching rooms:', error);
+      console.error('Error response:', error.response);
       setRooms([]);
+      
+      // Show error message to user
+      setSubmitError(`Failed to load rooms for selected property: ${error.message}`);
+      // Clear error after 5 seconds
+      setTimeout(() => setSubmitError(''), 5000);
     }
   };
 
@@ -208,6 +211,7 @@ const CreateTenant = () => {
     try {
       const response = await tenantAPI.getById(id);
       const tenant = response.data;
+      
       setFormData({
         tenantName: tenant.tenantName || '',
         tenantMobile: tenant.tenantMobile || '',
@@ -215,25 +219,6 @@ const CreateTenant = () => {
         tenantAdharId: tenant.tenantAdharId || '',
         tenantProfilePic: tenant.tenantProfilePic || '',
         tenantDocument: tenant.tenantDocument || '',
-        permanentAddress: {
-          street: tenant.permanentAddress?.street || '',
-          landMark: tenant.permanentAddress?.landMark || '',
-          area: tenant.permanentAddress?.area || '',
-          city: tenant.permanentAddress?.city || '',
-          pincode: tenant.permanentAddress?.pincode || '',
-          stateId: tenant.permanentAddress?.stateId || '',
-          countryId: tenant.permanentAddress?.countryId || ''
-        },
-        currentAddress: {
-          street: tenant.currentAddress?.street || '',
-          landMark: tenant.currentAddress?.landMark || '',
-          area: tenant.currentAddress?.area || '',
-          city: tenant.currentAddress?.city || '',
-          pincode: tenant.currentAddress?.pincode || '',
-          stateId: tenant.currentAddress?.stateId || '',
-          countryId: tenant.currentAddress?.countryId || ''
-        },
-        tenantRoomNo: tenant.tenantRoomNo || '',
         lockInPeriod: tenant.lockInPeriod || '',
         note: tenant.note || '',
         deposited: tenant.deposited || '',
@@ -245,30 +230,26 @@ const CreateTenant = () => {
         propertyId: tenant.propertyId || '',
         roomId: tenant.roomId || ''
       });
+
+      // Set address data
+      if (tenant.permanentAddress) {
+        setPermanentAddressData(tenant.permanentAddress);
+      }
+      if (tenant.currentAddress) {
+        setCurrentAddressData(tenant.currentAddress);
+      }
     } catch (error) {
       console.error('Error fetching tenant:', error);
+      setSubmitError('Failed to load tenant data');
     }
   };
 
   const handleChange = (field) => (event) => {
-    const value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
-    
-    if (field.includes('.')) {
-      // Handle nested address fields
-      const [parent, child] = field.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: value
-        }
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [field]: value
-      }));
-    }
+    const value = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      [field]: value === null || value === undefined ? '' : value
+    }));
     
     // Clear error for this field
     if (errors[field]) {
@@ -279,21 +260,41 @@ const CreateTenant = () => {
     }
   };
 
+  const handlePermanentAddressChange = (addressData) => {
+    setPermanentAddressData(addressData);
+    if (sameAddress) {
+      setCurrentAddressData(addressData);
+    }
+    // Clear address errors
+    setAddressErrors(prev => ({
+      ...prev,
+      permanent: {}
+    }));
+  };
+
+  const handleCurrentAddressChange = (addressData) => {
+    if (!sameAddress) {
+      setCurrentAddressData(addressData);
+    }
+    // Clear address errors
+    setAddressErrors(prev => ({
+      ...prev,
+      current: {}
+    }));
+  };
+
   const handleSameAddressToggle = () => {
     const newSameAddress = !sameAddress;
     setSameAddress(newSameAddress);
     
     if (newSameAddress) {
-      // Copy permanent address to current address
-      setFormData(prev => ({
-        ...prev,
-        currentAddress: { ...prev.permanentAddress }
-      }));
+      setCurrentAddressData(permanentAddressData);
     }
   };
 
   const validateForm = () => {
     const newErrors = {};
+    const newAddressErrors = { permanent: {}, current: {} };
 
     // Required fields validation
     if (!formData.tenantName.trim()) {
@@ -316,16 +317,12 @@ const CreateTenant = () => {
       newErrors.tenantAdharId = 'Aadhaar ID must be exactly 12 digits';
     }
 
-    if (!formData.tenantRoomNo) {
-      newErrors.tenantRoomNo = 'Room number is required';
-    }
-
     if (!formData.lockInPeriod.trim()) {
       newErrors.lockInPeriod = 'Lock-in period is required';
     }
 
-    if (!formData.deposited || isNaN(parseFloat(formData.deposited))) {
-      newErrors.deposited = 'Deposit amount is required and must be a valid number';
+    if (!formData.deposited || isNaN(parseFloat(formData.deposited)) || parseFloat(formData.deposited) <= 0) {
+      newErrors.deposited = 'Deposit amount is required and must be greater than 0';
     }
 
     if (!formData.boardingDate) {
@@ -337,29 +334,36 @@ const CreateTenant = () => {
     }
 
     // Address validation
-    ['permanentAddress', 'currentAddress'].forEach(addressType => {
-      const address = formData[addressType];
+    const validateAddress = (address, type) => {
       if (!address.street.trim()) {
-        newErrors[`${addressType}.street`] = 'Street is required';
+        newAddressErrors[type].street = 'Street is required';
       }
       if (!address.city.trim()) {
-        newErrors[`${addressType}.city`] = 'City is required';
+        newAddressErrors[type].city = 'City is required';
       }
       if (!address.pincode.trim()) {
-        newErrors[`${addressType}.pincode`] = 'Pincode is required';
+        newAddressErrors[type].pincode = 'Pincode is required';
       } else if (!/^\d{6}$/.test(address.pincode.trim())) {
-        newErrors[`${addressType}.pincode`] = 'Pincode must be exactly 6 digits';
+        newAddressErrors[type].pincode = 'Pincode must be exactly 6 digits';
       }
       if (!address.stateId) {
-        newErrors[`${addressType}.stateId`] = 'State is required';
+        newAddressErrors[type].stateId = 'State is required';
       }
       if (!address.countryId) {
-        newErrors[`${addressType}.countryId`] = 'Country is required';
+        newAddressErrors[type].countryId = 'Country is required';
       }
-    });
+    };
+
+    validateAddress(permanentAddressData, 'permanent');
+    validateAddress(currentAddressData, 'current');
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setAddressErrors(newAddressErrors);
+    
+    const hasFormErrors = Object.keys(newErrors).length > 0;
+    const hasAddressErrors = Object.keys(newAddressErrors.permanent).length > 0 || Object.keys(newAddressErrors.current).length > 0;
+    
+    return !hasFormErrors && !hasAddressErrors;
   };
 
   const handleSubmit = async (event) => {
@@ -374,33 +378,32 @@ const CreateTenant = () => {
 
     try {
       const submitData = {
-        tenantName: formData.tenantName,
-        tenantMobile: formData.tenantMobile,
-        tenantEmail: formData.tenantEmail || null,
-        tenantAdharId: formData.tenantAdharId,
-        tenantProfilePic: formData.tenantProfilePic || null,
-        tenantDocument: formData.tenantDocument || null,
+        tenantName: formData.tenantName.trim(),
+        tenantMobile: formData.tenantMobile.trim(),
+        tenantEmail: formData.tenantEmail.trim() || null,
+        tenantAdharId: formData.tenantAdharId.trim(),
+        tenantProfilePic: formData.tenantProfilePic.trim() || null,
+        tenantDocument: formData.tenantDocument.trim() || null,
         permanentAddress: {
-          street: formData.permanentAddress.street,
-          landMark: formData.permanentAddress.landMark,
-          area: formData.permanentAddress.area,
-          city: formData.permanentAddress.city,
-          pincode: formData.permanentAddress.pincode,
-          stateId: parseInt(formData.permanentAddress.stateId),
-          countryId: parseInt(formData.permanentAddress.countryId)
+          street: permanentAddressData.street.trim(),
+          landMark: permanentAddressData.landMark.trim(),
+          area: permanentAddressData.area.trim(),
+          city: permanentAddressData.city.trim(),
+          pincode: permanentAddressData.pincode.trim(),
+          stateId: parseInt(permanentAddressData.stateId),
+          countryId: parseInt(permanentAddressData.countryId)
         },
         currentAddress: {
-          street: formData.currentAddress.street,
-          landMark: formData.currentAddress.landMark,
-          area: formData.currentAddress.area,
-          city: formData.currentAddress.city,
-          pincode: formData.currentAddress.pincode,
-          stateId: parseInt(formData.currentAddress.stateId),
-          countryId: parseInt(formData.currentAddress.countryId)
+          street: currentAddressData.street.trim(),
+          landMark: currentAddressData.landMark.trim(),
+          area: currentAddressData.area.trim(),
+          city: currentAddressData.city.trim(),
+          pincode: currentAddressData.pincode.trim(),
+          stateId: parseInt(currentAddressData.stateId),
+          countryId: parseInt(currentAddressData.countryId)
         },
-        tenantRoomNo: parseInt(formData.tenantRoomNo),
-        lockInPeriod: formData.lockInPeriod,
-        note: formData.note || null,
+        lockInPeriod: formData.lockInPeriod.trim(),
+        note: formData.note.trim() || null,
         deposited: parseFloat(formData.deposited),
         presentRentValue: formData.presentRentValue ? parseFloat(formData.presentRentValue) : null,
         pastRentValue: formData.pastRentValue ? parseFloat(formData.pastRentValue) : null,
@@ -590,7 +593,7 @@ const CreateTenant = () => {
                 <FormControl fullWidth error={!!errors.propertyId} required>
                   <InputLabel>Property</InputLabel>
                   <Select
-                    value={properties.length > 0 ? formData.propertyId : ''}
+                    value={formData.propertyId}
                     onChange={handleChange('propertyId')}
                     label="Property"
                   >
@@ -612,41 +615,46 @@ const CreateTenant = () => {
                 <FormControl fullWidth>
                   <InputLabel>Room (Optional)</InputLabel>
                   <Select
-                    value={rooms.length > 0 ? formData.roomId : ''}
-                    onChange={handleChange('roomId')}
+                    value={formData.roomId || ''}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      console.log('Room selection - Raw value:', value, 'Type:', typeof value);
+                      setFormData(prev => ({
+                        ...prev,
+                        roomId: value || ''
+                      }));
+                    }}
                     label="Room (Optional)"
-                    disabled={!formData.propertyId}
+                    disabled={!formData.propertyId || rooms.length === 0}
                   >
                     <MenuItem value="">
                       <em>No specific room</em>
                     </MenuItem>
-                    {rooms.map(room => (
-                      <MenuItem key={room.id} value={room.id}>
-                        Room {room.roomNumber} - {room.roomType}
-                      </MenuItem>
-                    ))}
+                    {rooms.length > 0 && rooms.map(room => {
+                      const roomId = room.id || room.roomId;
+                      const roomNumber = room.roomNo || room.roomNumber || 'N/A';
+                      const roomType = room.roomType || 'Standard';
+                      
+                      console.log('Rendering room:', { roomId, roomNumber, roomType, fullRoom: room });
+                      
+                      return (
+                        <MenuItem key={roomId} value={roomId}>
+                          Room {roomNumber} - {roomType}
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
+                  {!formData.propertyId && (
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 2, mt: 0.5 }}>
+                      Please select a property first
+                    </Typography>
+                  )}
+                  {formData.propertyId && rooms.length === 0 && (
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 2, mt: 0.5 }}>
+                      No rooms available for this property
+                    </Typography>
+                  )}
                 </FormControl>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Room Number"
-                  type="number"
-                  value={formData.tenantRoomNo}
-                  onChange={handleChange('tenantRoomNo')}
-                  error={!!errors.tenantRoomNo}
-                  helperText={errors.tenantRoomNo || 'Room number assigned to tenant'}
-                  required
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Home />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
               </Grid>
 
               <Grid item xs={12} sm={6}>
@@ -693,7 +701,7 @@ const CreateTenant = () => {
                 <FormControl fullWidth>
                   <InputLabel>Currency</InputLabel>
                   <Select
-                    value={currencies.length > 0 ? formData.currencyCode : ''}
+                    value={formData.currencyCode}
                     onChange={handleChange('currencyCode')}
                     label="Currency"
                   >
@@ -773,109 +781,12 @@ const CreateTenant = () => {
                 </Typography>
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Street Address"
-                  value={formData.permanentAddress.street}
-                  onChange={handleChange('permanentAddress.street')}
-                  error={!!errors['permanentAddress.street']}
-                  helperText={errors['permanentAddress.street']}
-                  required
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LocationOn />
-                      </InputAdornment>
-                    ),
-                  }}
+              <Grid item xs={12}>
+                <AddressForm
+                  onAddressChange={handlePermanentAddressChange}
+                  initialData={permanentAddressData}
+                  errors={addressErrors.permanent}
                 />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Landmark"
-                  value={formData.permanentAddress.landMark}
-                  onChange={handleChange('permanentAddress.landMark')}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Area"
-                  value={formData.permanentAddress.area}
-                  onChange={handleChange('permanentAddress.area')}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="City"
-                  value={formData.permanentAddress.city}
-                  onChange={handleChange('permanentAddress.city')}
-                  error={!!errors['permanentAddress.city']}
-                  helperText={errors['permanentAddress.city']}
-                  required
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Pincode"
-                  value={formData.permanentAddress.pincode}
-                  onChange={handleChange('permanentAddress.pincode')}
-                  error={!!errors['permanentAddress.pincode']}
-                  helperText={errors['permanentAddress.pincode'] || 'Enter 6-digit pincode'}
-                  required
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth error={!!errors['permanentAddress.stateId']} required>
-                  <InputLabel>State</InputLabel>
-                  <Select
-                    value={states.length > 0 ? formData.permanentAddress.stateId : ''}
-                    onChange={handleChange('permanentAddress.stateId')}
-                    label="State"
-                  >
-                    {states.map(state => (
-                      <MenuItem key={state.id || state.value} value={state.id || state.value}>
-                        {state.name || state.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors['permanentAddress.stateId'] && (
-                    <Typography variant="caption" color="error" sx={{ ml: 2, mt: 0.5 }}>
-                      {errors['permanentAddress.stateId']}
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth error={!!errors['permanentAddress.countryId']} required>
-                  <InputLabel>Country</InputLabel>
-                  <Select
-                    value={countries.length > 0 ? formData.permanentAddress.countryId : ''}
-                    onChange={handleChange('permanentAddress.countryId')}
-                    label="Country"
-                  >
-                    {countries.map(country => (
-                      <MenuItem key={country.id || country.value} value={country.id || country.value}>
-                        {country.name || country.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors['permanentAddress.countryId'] && (
-                    <Typography variant="caption" color="error" sx={{ ml: 2, mt: 0.5 }}>
-                      {errors['permanentAddress.countryId']}
-                    </Typography>
-                  )}
-                </FormControl>
               </Grid>
 
               {/* Current Address */}
@@ -896,116 +807,13 @@ const CreateTenant = () => {
                 </Box>
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Street Address"
-                  value={formData.currentAddress.street}
-                  onChange={handleChange('currentAddress.street')}
-                  error={!!errors['currentAddress.street']}
-                  helperText={errors['currentAddress.street']}
-                  required
-                  disabled={sameAddress}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LocationOn />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Landmark"
-                  value={formData.currentAddress.landMark}
-                  onChange={handleChange('currentAddress.landMark')}
+              <Grid item xs={12}>
+                <AddressForm
+                  onAddressChange={handleCurrentAddressChange}
+                  initialData={currentAddressData}
+                  errors={addressErrors.current}
                   disabled={sameAddress}
                 />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Area"
-                  value={formData.currentAddress.area}
-                  onChange={handleChange('currentAddress.area')}
-                  disabled={sameAddress}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="City"
-                  value={formData.currentAddress.city}
-                  onChange={handleChange('currentAddress.city')}
-                  error={!!errors['currentAddress.city']}
-                  helperText={errors['currentAddress.city']}
-                  required
-                  disabled={sameAddress}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Pincode"
-                  value={formData.currentAddress.pincode}
-                  onChange={handleChange('currentAddress.pincode')}
-                  error={!!errors['currentAddress.pincode']}
-                  helperText={errors['currentAddress.pincode'] || 'Enter 6-digit pincode'}
-                  required
-                  disabled={sameAddress}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth error={!!errors['currentAddress.stateId']} required>
-                  <InputLabel>State</InputLabel>
-                  <Select
-                    value={states.length > 0 ? formData.currentAddress.stateId : ''}
-                    onChange={handleChange('currentAddress.stateId')}
-                    label="State"
-                    disabled={sameAddress}
-                  >
-                    {states.map(state => (
-                      <MenuItem key={state.id || state.value} value={state.id || state.value}>
-                        {state.name || state.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors['currentAddress.stateId'] && (
-                    <Typography variant="caption" color="error" sx={{ ml: 2, mt: 0.5 }}>
-                      {errors['currentAddress.stateId']}
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth error={!!errors['currentAddress.countryId']} required>
-                  <InputLabel>Country</InputLabel>
-                  <Select
-                    value={countries.length > 0 ? formData.currentAddress.countryId : ''}
-                    onChange={handleChange('currentAddress.countryId')}
-                    label="Country"
-                    disabled={sameAddress}
-                  >
-                    {countries.map(country => (
-                      <MenuItem key={country.id || country.value} value={country.id || country.value}>
-                        {country.name || country.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors['currentAddress.countryId'] && (
-                    <Typography variant="caption" color="error" sx={{ ml: 2, mt: 0.5 }}>
-                      {errors['currentAddress.countryId']}
-                    </Typography>
-                  )}
-                </FormControl>
               </Grid>
 
               {/* Additional Notes */}
@@ -1069,4 +877,3 @@ const CreateTenant = () => {
 };
 
 export default CreateTenant;
-

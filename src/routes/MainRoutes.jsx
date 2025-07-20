@@ -14,9 +14,9 @@ const CreateRoom = Loadable(lazy(() => import('../pages/CreateRoom')));
 const Tenants = Loadable(lazy(() => import('../pages/Tenants')));
 const TenantDetails = Loadable(lazy(() => import('../pages/TenantDetails')));
 const CreateTenant = Loadable(lazy(() => import('../pages/CreateTenant')));
-const Rents = Loadable(lazy(() => import('../pages/Rents')));
-const RentDetails = Loadable(lazy(() => import('../pages/RentDetails')));
-const CreateRent = Loadable(lazy(() => import('../pages/CreateRent')));
+const RentTracks = Loadable(lazy(() => import('../pages/RentTracks')));
+const RentTrackDetails = Loadable(lazy(() => import('../pages/RentTrackDetails')));
+const CreateRentTrack = Loadable(lazy(() => import('../pages/CreateRentTrack')));
 const Profile = Loadable(lazy(() => import('../pages/Profile')));
 
 // ==============================|| MAIN ROUTING ||============================== //
@@ -86,20 +86,20 @@ const MainRoutes = {
             element: <CreateTenant />
         },
         {
-            path: '/rents',
-            element: <Rents />
+            path: '/rent-tracks',
+            element: <RentTracks />
         },
         {
-            path: '/rents/:id',
-            element: <RentDetails />
+            path: '/rent-tracks/:id',
+            element: <RentTrackDetails />
         },
         {
-            path: '/rents/create',
-            element: <CreateRent />
+            path: '/rent-tracks/create',
+            element: <CreateRentTrack />
         },
         {
-            path: '/rents/edit/:id',
-            element: <CreateRent />
+            path: '/rent-tracks/edit/:id',
+            element: <CreateRentTrack />
         },
         {
             path: '/profile',

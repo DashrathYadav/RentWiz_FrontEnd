@@ -35,7 +35,7 @@ import {
   CalendarToday
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { roomAPI, rentAPI } from '../services/api';
+import { roomAPI, rentTrackAPI } from '../services/api';
 
 const RoomDetails = () => {
   const { id } = useParams();
@@ -99,7 +99,7 @@ const RoomDetails = () => {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const ownerId = user.id || 1;
       
-      const response = await rentAPI.getByOwner(ownerId);
+      const response = await rentTrackAPI.getByOwner(ownerId);
       // Handle the Result<T> wrapper structure from backend
       const rentsData = response.data?.data || response.data || [];
       
@@ -108,10 +108,12 @@ const RoomDetails = () => {
         .filter(rent => rent.roomId === parseInt(id))
         .map(rent => ({
           ...rent,
-          // Map specific fields that need different property names
-          amount: rent.amount || rent.rentAmount,
-          rentDate: rent.rentDate || rent.date,
-          paymentStatus: rent.paymentStatus || rent.status
+          // Map specific fields for RentTrack structure
+          expectedAmount: rent.expectedRentValue || 0,
+          receivedAmount: rent.receivedRentValue || 0,
+          periodStart: rent.rentPeriodStartDate,
+          periodEnd: rent.rentPeriodEndDate,
+          trackStatus: rent.status
         })) : [];
       
       setRents(roomRents);
@@ -311,30 +313,30 @@ const RoomDetails = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Amount</TableCell>
+                      <TableCell>Period Start</TableCell>
+                      <TableCell>Expected</TableCell>
                       <TableCell>Status</TableCell>
-                      <TableCell>Payment Method</TableCell>
-                      <TableCell>Due Date</TableCell>
+                      <TableCell>Received</TableCell>
+                      <TableCell>Period End</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {rents.map((rent) => (
                       <TableRow key={rent.id}>
                         <TableCell>
-                          {new Date(rent.rentDate).toLocaleDateString()}
+                          {new Date(rent.rentPeriodStartDate).toLocaleDateString()}
                         </TableCell>
-                        <TableCell>${rent.amount}</TableCell>
+                        <TableCell>₹{rent.expectedRentValue || 0}</TableCell>
                         <TableCell>
                           <Chip 
-                            label={rent.paymentStatus} 
-                            color={getPaymentStatusColor(rent.paymentStatus)}
+                            label={rent.status === 3 ? 'Fully Paid' : rent.status === 2 ? 'Partially Paid' : 'Pending'} 
+                            color={rent.status === 3 ? 'success' : rent.status === 2 ? 'info' : 'warning'}
                             size="small"
                           />
                         </TableCell>
-                        <TableCell>{rent.paymentMethod || 'N/A'}</TableCell>
+                        <TableCell>₹{rent.receivedRentValue || 0}</TableCell>
                         <TableCell>
-                          {new Date(rent.dueDate).toLocaleDateString()}
+                          {new Date(rent.rentPeriodEndDate).toLocaleDateString()}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -381,13 +383,13 @@ const RoomDetails = () => {
                     Monthly Rent: ${room.rentAmount}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Total Collected: ${rents.reduce((sum, rent) => 
-                      rent.paymentStatus === 'Paid' ? sum + rent.amount : sum, 0
+                    Total Collected: ₹{rents.reduce((sum, rent) => 
+                      sum + (rent.receivedRentValue || 0), 0
                     )}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Pending Amount: ${rents.reduce((sum, rent) => 
-                      rent.paymentStatus === 'Pending' ? sum + rent.amount : sum, 0
+                    Total Expected: ₹{rents.reduce((sum, rent) => 
+                      sum + (rent.expectedRentValue || 0), 0
                     )}
                   </Typography>
                 </CardContent>

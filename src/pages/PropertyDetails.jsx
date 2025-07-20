@@ -474,7 +474,7 @@ const PropertyDetails = () => {
                   fullWidth
                   variant="outlined"
                   startIcon={<AttachMoney />}
-                  onClick={() => navigate(`/rents?propertyId=${property.propertyId}`)}
+                  onClick={() => navigate(`/rent-tracks?propertyId=${property.propertyId}`)}
                 >
                   View Rent Records
                 </Button>

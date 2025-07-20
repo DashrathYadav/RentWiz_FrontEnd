@@ -29,7 +29,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   propertyAPI, 
   tenantAPI, 
-  rentAPI, 
+  rentTrackAPI, 
   roomAPI 
 } from '../services/api';
 
@@ -57,29 +57,29 @@ const Dashboard = () => {
       const ownerId = user.id || 1;
       
       // Fetch all data in parallel using owner-specific endpoints
-      const [properties, tenants, rooms, rents] = await Promise.all([
+      const [properties, tenants, rooms, rentTracks] = await Promise.all([
         propertyAPI.getByOwner(ownerId),
         tenantAPI.getByOwner(ownerId),
         roomAPI.getByOwner(ownerId),
-        rentAPI.getByOwner(ownerId)
+        rentTrackAPI.getByOwner(ownerId)
       ]);
 
       // Check if the response has data property or if the data is directly in response.data.data
       const propertiesData = properties.data?.data || properties.data || [];
       const tenantsData = tenants.data?.data || tenants.data || [];
       const roomsData = rooms.data?.data || rooms.data || [];
-      const rentsData = rents.data?.data || rents.data || [];
+      const rentTracksData = rentTracks.data?.data || rentTracks.data || [];
 
       // Calculate stats
       setStats({
         totalProperties: Array.isArray(propertiesData) ? propertiesData.length : 0,
         totalTenants: Array.isArray(tenantsData) ? tenantsData.length : 0,
         totalRooms: Array.isArray(roomsData) ? roomsData.length : 0,
-        monthlyRevenue: Array.isArray(rentsData) ? rentsData.reduce((total, rent) => total + (rent.amount || 0), 0) : 0
+        monthlyRevenue: Array.isArray(rentTracksData) ? rentTracksData.reduce((total, rentTrack) => total + (rentTrack.receivedRentValue || 0), 0) : 0
       });
 
-      // Set recent rents (last 5)
-      setRecentRents(Array.isArray(rentsData) ? rentsData.slice(0, 5) : []);
+      // Set recent rent tracks (last 5)
+      setRecentRents(Array.isArray(rentTracksData) ? rentTracksData.slice(0, 5) : []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -208,55 +208,64 @@ const Dashboard = () => {
               <QuickAction
                 title="Record Rent"
                 description="Record rent payment"
-                onClick={() => navigate('/rents/create')}
+                onClick={() => navigate('/rent-tracks/create')}
                 icon={<AttachMoney />}
               />
             </Grid>
           </Grid>
         </Grid>
 
-        {/* Recent Rents */}
+        {/* Recent Rent Tracks */}
         <Grid item xs={12} md={6}>
           <Typography variant="h6" gutterBottom color="#000" fontWeight="bold">
-            Recent Rent Payments
+            Recent Rent Tracks
           </Typography>
           <TableContainer component={Paper} sx={{ border: '1px solid #e0e0e0' }}>
             <Table>
               <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
                 <TableRow>
                   <TableCell>Tenant</TableCell>
-                  <TableCell>Amount</TableCell>
-                  <TableCell>Date</TableCell>
+                  <TableCell>Expected</TableCell>
+                  <TableCell>Received</TableCell>
+                  <TableCell>Period</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {recentRents.length > 0 ? (
-                  recentRents.map((rent) => (
-                    <TableRow key={rent.id}>
-                      <TableCell>{rent.tenantName || 'N/A'}</TableCell>
-                      <TableCell>${rent.amount}</TableCell>
+                  recentRents.map((rentTrack) => (
+                    <TableRow key={rentTrack.id}>
+                      <TableCell>{rentTrack.tenant?.tenantName || 'N/A'}</TableCell>
+                      <TableCell>₹{rentTrack.expectedRentValue || 0}</TableCell>
+                      <TableCell>₹{rentTrack.receivedRentValue || 0}</TableCell>
                       <TableCell>
-                        {new Date(rent.paymentDate).toLocaleDateString()}
+                        {rentTrack.rentPeriodStartDate ? 
+                          new Date(rentTrack.rentPeriodStartDate).toLocaleDateString() : 'N/A'}
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={rent.isPaid ? 'Paid' : 'Pending'}
-                          color={rent.isPaid ? 'success' : 'warning'}
+                          label={
+                            rentTrack.status === 3 ? 'Fully Paid' : 
+                            rentTrack.status === 2 ? 'Partially Paid' : 'Pending'
+                          }
+                          color={
+                            rentTrack.status === 3 ? 'success' : 
+                            rentTrack.status === 2 ? 'info' : 'warning'
+                          }
                           size="small"
                         />
                       </TableCell>
                       <TableCell>
                         <IconButton 
                           size="small" 
-                          onClick={() => navigate(`/rents/${rent.id}`)}
+                          onClick={() => navigate(`/rent-tracks/${rentTrack.id}`)}
                         >
                           <Visibility />
                         </IconButton>
                         <IconButton 
                           size="small"
-                          onClick={() => navigate(`/rents/${rent.id}/edit`)}
+                          onClick={() => navigate(`/rent-tracks/edit/${rentTrack.id}`)}
                         >
                           <Edit />
                         </IconButton>
@@ -265,9 +274,9 @@ const Dashboard = () => {
                   ))
                 ) : (
                   <TableRow key="no-data">
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={6} align="center">
                       <Typography color="textSecondary">
-                        No recent rent payments found
+                        No recent rent tracks found
                       </Typography>
                     </TableCell>
                   </TableRow>

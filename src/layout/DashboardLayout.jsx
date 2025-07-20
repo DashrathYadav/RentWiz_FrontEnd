@@ -47,14 +47,14 @@ const DashboardLayout = () => {
         { text: 'Properties', icon: <HomeIcon />, path: '/properties' },
         { text: 'Rooms', icon: <RoomIcon />, path: '/rooms' },
         { text: 'Tenants', icon: <TenantsIcon />, path: '/tenants' },
-        { text: 'Rents', icon: <RentIcon />, path: '/rents' }
+        { text: 'Rent Tracks', icon: <RentIcon />, path: '/rent-tracks' }
     ];
 
     const createItems = [
         { text: 'New Property', path: '/properties/create' },
         { text: 'New Room', path: '/rooms/create' },
         { text: 'New Tenant', path: '/tenants/create' },
-        { text: 'New Rent', path: '/rents/create' }
+        { text: 'New Rent Track', path: '/rent-tracks/create' }
     ];
 
     const handleDrawerToggle = () => {

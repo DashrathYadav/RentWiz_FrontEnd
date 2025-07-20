@@ -38,7 +38,7 @@ import {
   AttachMoney
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { tenantAPI, rentAPI } from '../services/api';
+import { tenantAPI, rentTrackAPI } from '../services/api';
 
 const TenantDetails = () => {
   const { id } = useParams();
@@ -105,9 +105,9 @@ const TenantDetails = () => {
 
   const fetchTenantRents = async () => {
     try {
-      const response = await rentAPI.getByTenant(id);
+      const response = await rentTrackAPI.getByTenant(id);
       const tenantRents = response.data.data || response.data || [];
-      setRents(tenantRents.sort((a, b) => new Date(b.rentDate) - new Date(a.rentDate)));
+      setRents(tenantRents.sort((a, b) => new Date(b.rentPeriodStartDate) - new Date(a.rentPeriodStartDate)));
     } catch (error) {
       console.error('Failed to load tenant rents:', error);
     }
@@ -138,20 +138,19 @@ const TenantDetails = () => {
 
   const getPaymentStatusColor = (status) => {
     switch (status) {
-      case 'Paid': return 'success';
-      case 'Pending': return 'warning';
-      case 'Overdue': return 'error';
-      case 'Partial': return 'info';
+      case 3: return 'success'; // Fully Paid
+      case 2: return 'info';    // Partially Paid
+      case 1: return 'warning'; // Pending
       default: return 'default';
     }
   };
 
   const calculateTenantStats = () => {
-    const totalPaid = rents.filter(r => r.paymentStatus === 'Paid').reduce((sum, r) => sum + r.amount, 0);
-    const totalPending = rents.filter(r => r.paymentStatus === 'Pending').reduce((sum, r) => sum + r.amount, 0);
-    const totalOverdue = rents.filter(r => r.paymentStatus === 'Overdue').reduce((sum, r) => sum + r.amount, 0);
+    const totalPaid = rents.filter(r => r.status === 3).reduce((sum, r) => sum + (r.receivedRentValue || 0), 0);
+    const totalPending = rents.filter(r => r.status === 1).reduce((sum, r) => sum + ((r.expectedRentValue || 0) - (r.receivedRentValue || 0)), 0);
+    const totalPartial = rents.filter(r => r.status === 2).reduce((sum, r) => sum + ((r.expectedRentValue || 0) - (r.receivedRentValue || 0)), 0);
     
-    return { totalPaid, totalPending, totalOverdue };
+    return { totalPaid, totalPending, totalOverdue: totalPartial };
   };
 
   if (loading) {
@@ -354,9 +353,9 @@ const TenantDetails = () => {
               <Button 
                 variant="contained"
                 sx={{ bgcolor: 'black', '&:hover': { bgcolor: 'grey.800' } }}
-                onClick={() => navigate('/rents/create')}
+                onClick={() => navigate('/rent-tracks/create')}
               >
-                Add Rent Payment
+                Add Rent Track
               </Button>
             </Box>
             
@@ -369,11 +368,11 @@ const TenantDetails = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Amount</TableCell>
+                      <TableCell>Period Start</TableCell>
+                      <TableCell>Expected</TableCell>
                       <TableCell>Status</TableCell>
-                      <TableCell>Payment Method</TableCell>
-                      <TableCell>Due Date</TableCell>
+                      <TableCell>Received</TableCell>
+                      <TableCell>Period End</TableCell>
                       <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -381,24 +380,24 @@ const TenantDetails = () => {
                     {rents.map((rent) => (
                       <TableRow key={rent.id}>
                         <TableCell>
-                          {new Date(rent.rentDate).toLocaleDateString()}
+                          {new Date(rent.rentPeriodStartDate).toLocaleDateString()}
                         </TableCell>
-                        <TableCell>${rent.amount}</TableCell>
+                        <TableCell>₹{rent.expectedRentValue || 0}</TableCell>
                         <TableCell>
                           <Chip 
-                            label={rent.paymentStatus} 
-                            color={getPaymentStatusColor(rent.paymentStatus)}
+                            label={rent.status === 3 ? 'Fully Paid' : rent.status === 2 ? 'Partially Paid' : 'Pending'} 
+                            color={getPaymentStatusColor(rent.status)}
                             size="small"
                           />
                         </TableCell>
-                        <TableCell>{rent.paymentMethod || 'N/A'}</TableCell>
+                        <TableCell>₹{rent.receivedRentValue || 0}</TableCell>
                         <TableCell>
-                          {new Date(rent.dueDate).toLocaleDateString()}
+                          {new Date(rent.rentPeriodEndDate).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
                           <Button 
                             size="small"
-                            onClick={() => navigate(`/rents/${rent.id}`)}
+                            onClick={() => navigate(`/rent-tracks/${rent.id}`)}
                           >
                             View
                           </Button>
@@ -519,7 +518,7 @@ const TenantDetails = () => {
                     fullWidth 
                     variant="outlined" 
                     sx={{ mb: 1 }}
-                    onClick={() => navigate(`/rents/create?tenantId=${tenant.id}`)}
+                    onClick={() => navigate(`/rent-tracks/create?tenantId=${tenant.id}`)}
                   >
                     Record Payment
                   </Button>

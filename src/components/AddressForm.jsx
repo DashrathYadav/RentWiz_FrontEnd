@@ -22,7 +22,7 @@ import {
 } from '@mui/icons-material';
 import { lookupsAPI } from '../services/api';
 
-const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
+const AddressForm = ({ onAddressChange, initialData = {}, errors = {}, disabled = false }) => {
   const [addressData, setAddressData] = useState({
     street: initialData.street || '',
     landMark: initialData.landMark || '',
@@ -108,6 +108,7 @@ const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
             error={!!errors.street}
             helperText={errors.street}
             required
+            disabled={disabled}
             placeholder="Enter street address"
             InputProps={{
               startAdornment: (
@@ -128,6 +129,7 @@ const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
             onChange={(e) => handleInputChange('landMark', e.target.value)}
             error={!!errors.landMark}
             helperText={errors.landMark}
+            disabled={disabled}
             placeholder="Near landmark"
             InputProps={{
               startAdornment: (
@@ -148,6 +150,7 @@ const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
             onChange={(e) => handleInputChange('area', e.target.value)}
             error={!!errors.area}
             helperText={errors.area}
+            disabled={disabled}
             required
             placeholder="Area/Locality"
             InputProps={{
@@ -170,6 +173,7 @@ const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
             error={!!errors.city}
             helperText={errors.city}
             required
+            disabled={disabled}
             placeholder="Enter city"
             InputProps={{
               startAdornment: (
@@ -191,6 +195,7 @@ const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
             error={!!errors.pincode}
             helperText={errors.pincode || 'Enter 6-digit pincode'}
             required
+            disabled={disabled}
             placeholder="Enter pincode"
             inputProps={{ maxLength: 6 }}
             InputProps={{
@@ -211,6 +216,7 @@ const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
               value={addressData.stateId}
               onChange={(e) => handleInputChange('stateId', e.target.value)}
               label="State"
+              disabled={disabled}
               startAdornment={
                 <InputAdornment position="start">
                   <Public />
@@ -242,6 +248,7 @@ const AddressForm = ({ onAddressChange, initialData = {}, errors = {} }) => {
               value={addressData.countryId}
               onChange={(e) => handleInputChange('countryId', e.target.value)}
               label="Country"
+              disabled={disabled}
               startAdornment={
                 <InputAdornment position="start">
                   <Flag />

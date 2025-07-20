@@ -34,13 +34,15 @@ export const API_Route = {
   searchTenants: "tenant/search",
   updateTenant: "tenant",
 
-  // Rent endpoints
-  createRent: "rent/create",
-  getRentById: "rent",
-  getRentsByProperty: "rent/property",
-  getRentsByTenant: "rent/tenant",
-  getRentsByOwner: "rent/owner",
-  searchRents: "rent/search",
+  // RentTrack endpoints
+  createRentTrack: "renttrack/create",
+  getRentTrackById: "renttrack",
+  getRentTracksByProperty: "renttrack/property",
+  getRentTracksByTenant: "renttrack/tenant",
+  getRentTracksByOwner: "renttrack/owner",
+  searchRentTracks: "renttrack/search",
+  updateRentTrack: "renttrack",
+  deleteRentTrack: "renttrack",
 
   // Address endpoints
   createAddress: "address/create",

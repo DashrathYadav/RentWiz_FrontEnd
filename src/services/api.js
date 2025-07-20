@@ -149,16 +149,18 @@ export const tenantAPI = {
   delete: (id) => api.delete(`/${API_Route.getTenantById}/${id}`),
 };
 
-// Rent API
-export const rentAPI = {
-  create: (rentData) => api.post(`/${API_Route.createRent}`, rentData),
-  getById: (id) => api.get(`/${API_Route.getRentById}/${id}`),
+// RentTrack API
+export const rentTrackAPI = {
+  create: (rentTrackData) =>
+    api.post(`/${API_Route.createRentTrack}`, rentTrackData),
+  getById: (id) => api.get(`/${API_Route.getRentTrackById}/${id}`),
   getByProperty: (propertyId) =>
-    api.get(`/${API_Route.getRentsByProperty}/${propertyId}`),
+    api.get(`/${API_Route.getRentTracksByProperty}/${propertyId}`),
   getByTenant: (tenantId) =>
-    api.get(`/${API_Route.getRentsByTenant}/${tenantId}`),
-  getByOwner: (ownerId) => api.get(`/${API_Route.getRentsByOwner}/${ownerId}`),
-  // New search endpoint with filters and pagination
+    api.get(`/${API_Route.getRentTracksByTenant}/${tenantId}`),
+  getByOwner: (ownerId) =>
+    api.get(`/${API_Route.getRentTracksByOwner}/${ownerId}`),
+  // Search endpoint with filters and pagination
   search: (searchParams = {}) => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const ownerId = user.id || 1;
@@ -171,9 +173,11 @@ export const rentAPI = {
       ...searchParams,
     };
 
-    return api.post(`/${API_Route.searchRents}`, params);
+    return api.post(`/${API_Route.searchRentTracks}`, params);
   },
-  delete: (id) => api.delete(`/${API_Route.getRentById}/${id}`),
+  update: (id, rentTrackData) =>
+    api.put(`/${API_Route.updateRentTrack}/${id}`, rentTrackData),
+  delete: (id) => api.delete(`/${API_Route.deleteRentTrack}/${id}`),
 };
 
 // Address API

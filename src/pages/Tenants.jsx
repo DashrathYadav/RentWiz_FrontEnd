@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -43,7 +43,6 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { tenantAPI, roomAPI } from '../services/api';
-import { debounce } from 'lodash';
 
 const Tenants = () => {
   const navigate = useNavigate();
@@ -56,7 +55,12 @@ const Tenants = () => {
   
   // Search and filters state
   const [searchTerm, setSearchTerm] = useState('');
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
   const [filters, setFilters] = useState({
+    status: '',
+    roomAssigned: ''
+  });
+  const [appliedFilters, setAppliedFilters] = useState({
     status: '',
     roomAssigned: ''
   });
@@ -73,25 +77,17 @@ const Tenants = () => {
   // Dialog state
   const [deleteDialog, setDeleteDialog] = useState({ open: false, tenant: null });
 
-  // Debounced search function
-  const debouncedFetch = useCallback(
-    debounce((search, currentFilters, currentPagination) => {
-      fetchTenants(search, currentFilters, currentPagination);
-    }, 500),
-    []
-  );
-
   useEffect(() => {
     fetchRooms();
     fetchTenants();
   }, []);
 
   useEffect(() => {
-    debouncedFetch(searchTerm, filters, { ...pagination, pageNumber: 0 });
+    fetchTenants(appliedSearchTerm, appliedFilters, { ...pagination, pageNumber: 0 });
     setPagination(prev => ({ ...prev, pageNumber: 0 }));
-  }, [searchTerm, filters, debouncedFetch]);
+  }, [appliedSearchTerm, appliedFilters]);
 
-  const fetchTenants = async (search = searchTerm, currentFilters = filters, currentPagination = pagination) => {
+  const fetchTenants = async (search = appliedSearchTerm, currentFilters = appliedFilters, currentPagination = pagination) => {
     try {
       setLoading(true);
       setError(null);
@@ -190,7 +186,7 @@ const Tenants = () => {
       pageNumber: newPage - 1 // Keep internal state 0-based for Material-UI compatibility
     };
     setPagination(newPagination);
-    fetchTenants(searchTerm, filters, newPagination);
+    fetchTenants(appliedSearchTerm, appliedFilters, newPagination);
   };
 
   const handlePageSizeChange = (event) => {
@@ -201,7 +197,13 @@ const Tenants = () => {
       pageNumber: 0 // Reset to first page when changing page size
     };
     setPagination(newPagination);
-    fetchTenants(searchTerm, filters, newPagination);
+    fetchTenants(appliedSearchTerm, appliedFilters, newPagination);
+  };
+
+  const applyFilters = () => {
+    setAppliedSearchTerm(searchTerm);
+    setAppliedFilters({ ...filters });
+    setPagination(prev => ({ ...prev, pageNumber: 0 })); // Reset to first page
   };
 
   const handleFilterChange = (filterType, value) => {
@@ -214,14 +216,19 @@ const Tenants = () => {
       status: '',
       roomAssigned: ''
     });
+    setAppliedFilters({
+      status: '',
+      roomAssigned: ''
+    });
     setSearchTerm('');
+    setAppliedSearchTerm('');
   };
 
   const handleDelete = async () => {
     try {
       await tenantAPI.delete(deleteDialog.tenant.id);
       setDeleteDialog({ open: false, tenant: null });
-      fetchTenants();
+      fetchTenants(appliedSearchTerm, appliedFilters);
     } catch (error) {
       console.error('Error deleting tenant:', error);
     }
@@ -316,7 +323,7 @@ const Tenants = () => {
           />
         </Box>
 
-        {/* Filter Toggle Button */}
+        {/* Filter Toggle Button and Apply Filters */}
         <Box display="flex" alignItems="center" gap={2} mb={showFilters ? 2 : 0}>
           <Button
             variant="outlined"
@@ -327,7 +334,20 @@ const Tenants = () => {
             {showFilters ? 'Hide Filters' : 'Show Filters'}
           </Button>
           
-          {(filters.status || filters.roomAssigned || searchTerm) && (
+          <Button
+            variant="contained"
+            onClick={applyFilters}
+            startIcon={<FilterList />}
+            sx={{
+              backgroundColor: '#000',
+              color: '#fff',
+              '&:hover': { backgroundColor: '#333' }
+            }}
+          >
+            Apply Filters
+          </Button>
+          
+          {(appliedFilters.status || appliedFilters.roomAssigned || appliedSearchTerm) && (
             <Button
               startIcon={<Clear />}
               onClick={clearFilters}
@@ -379,7 +399,7 @@ const Tenants = () => {
       <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
         <Typography variant="body2" color="textSecondary">
           Showing {tenants.length} of {pagination.totalCount} tenants
-          {(searchTerm || Object.values(filters).some(filter => filter)) && ' (filtered)'}
+          {(appliedSearchTerm || Object.values(appliedFilters).some(filter => filter)) && ' (filtered)'}
         </Typography>
         
         <Box display="flex" alignItems="center" gap={2}>
